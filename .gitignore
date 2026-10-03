@@ -1,0 +1,11 @@
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+.venv/
+sinama.txt
+
+# Deneme belgeleri kişisel veri içerebilir — asla depoya girmesin
+*.docx
+*.udf

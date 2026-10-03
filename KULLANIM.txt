@@ -1,0 +1,147 @@
+UDF ÇEVİRİCİ
+============
+
+NE İŞE YARAR
+İki yönde çalışır:
+
+  Word → UDF : Word'de (.docx) yazdığınız dilekçeyi, biçimini bozmadan UYAP
+               Doküman Editörü'nün UDF biçimine çevirir.
+  UDF → Word : Elinizdeki UDF belgesini (kendi dilekçeniz, UYAP'tan inen
+               evrak) üzerinde çalışabileceğiniz bir Word belgesine çevirir.
+
+İki yönde de tablolar, görseller, listeler, üstbilgi ve altbilgi, sayfa
+sonları korunur. Yönü dosyanın uzantısı belirler; ayrıca seçmeniz gerekmez.
+
+
+NASIL KULLANILIR
+1. Programı açın.
+2. Belgeleri pencereye sürükleyin ya da tıklayıp seçin (.docx ya da .udf).
+   Birden çok belge, hatta bir klasör bırakabilirsiniz. Listede her
+   belgenin yanında neye çevrileceği yazar ("→ UDF" ya da "→ Word").
+3. "Çevir" düğmesine basın.
+4. Çıktı, belgenin yanına aynı adla yazılır. İsterseniz "Kayıt yeri"nden
+   başka bir klasör seçebilirsiniz.
+5. UDF'yi UYAP'a yüklemeden önce UYAP Doküman Editörü'nde açıp bir kez
+   gözle kontrol edin. Word'e çevirdiğiniz belgeyi de Word'de bir kez
+   gözden geçirin.
+
+Program her çıktıyı ürettikten sonra kaynağıyla KARŞILAŞTIRIR: metnin
+eksiksiz geçtiğini ve dosyanın açılabilir yapıda olduğunu denetler. Denetim
+geçmezse dosya YAZILMAZ; kırmızı satır sebebini söyler, "Rapor" düğmesi
+ayrıntısını gösterir. Word'dekinden ya da Editör'dekinden farklı olacak
+yerler, çeviri bitince sonuç kutusunda sade bir dille sıralanır.
+
+Eski biçimli .doc dosyaları çevrilmez. Word'de "Farklı Kaydet → Word
+Belgesi (.docx)" ile kaydedip yeniden deneyin.
+
+
+AYARLAR (yalnız Word → UDF için)
+  Sayfa numarası : "Word'deki gibi" — Word altbilgisinde sayfa numarası
+                   varsa UDF'de de olur (hizası ve "3/12" biçimi dâhil).
+                   "Ekle" / "Ekleme" ile zorlanır.
+  Tablo dolgusu  : UDF'de hücre dolgu rengi yoktur. "Renk bandı" yazının
+                   arkasını hücre rengiyle boyar ve bandı satır boyunca
+                   uzatır; "Yalnız yazı" sadece koyu zemindeki beyaz yazıyı
+                   korur; "Yok" hiçbir şey yapmaz.
+  Kayıt yeri     : Belgenin yanı ya da seçtiğiniz klasör (iki yön için).
+
+
+EDİTÖR ÖNİZLEMESİ
+Bilgisayarınızda UYAP Doküman Editörü kuruluysa, Word → UDF çevirisinden
+sonra "Editör önizlemesi" düğmesi çıkar. Program, Editör'ü AÇMADAN Editör'ün
+kendi çizim motorunu kullanarak UDF'nin sayfalarını resim olarak gösterir;
+yani belgenin Editör'de nasıl görüneceğini görürsünüz. Editör kurulu değilse
+bu düğme görünmez; çeviri yine çalışır. "Belgeyi aç" düğmesi çıktıyı
+bilgisayarınızdaki programla (Word ya da Editör) açar.
+
+
+WORD → UDF: NELER TAŞINIR
+Hiza, girintiler, paragraf boşlukları, satır aralığı, sekme durakları;
+kalın / italik / altı çizili / üstü çizili / üst-alt simge, punto, renk,
+vurgu, yazı tipi; numaralı ve madde işaretli (çok düzeyli) listeler,
+"1)", "(a)", "1-" gibi numara biçimleri ve 1'den başlamayan listeler;
+tablolar (sütun genişlikleri, kenarlık, birleştirilmiş hücreler, hücre iç
+boşluğu, dikey hizalama); sayfa sonu; kâğıt boyutu (A4, A5, Letter…);
+üstbilgi ve altbilgi (yazı ve logo); antet (üstbilgide metnin arkasına
+yerleştirilmiş görsel ya da Word filigranı, Editör'de sayfa zemini olur); görseller (PNG, JPEG,
+GIF, BMP; Mac'te PDF görsel de); dipnotlar; metin kutuları; simgeler.
+
+WORD → UDF: NELER FARKLI OLUR (program bunları bildirir)
+- Dipnotlar sayfa altında değil, belgenin sonunda numaralı olarak yer alır.
+- Hücre dolgu rengi, dikey hizalama ve dikey birleştirme UDF'de yoktur;
+  program bunları taklit eder. Uzun, sarılan metinlerde birkaç punto
+  sapabilir.
+- Editör tek üstbilgi tutar: ilk sayfa ve devam sayfaları için iki ayrı
+  üstbilgi varsa ilk sayfanınki korunur.
+- HARFLİ LİSTELER: Editör harfleri Türk alfabesiyle sayar (a, b, c, ç, d…),
+  Word ise İngiliz alfabesiyle (a, b, c, d, e…). Dört ve daha çok kalemli
+  harfli listede Word'deki "d" bendi Editör'de "ç" olarak görünür. Metinde
+  bu bentlere atıf varsa kontrol edin.
+- "1.1." gibi çok basamaklı numaralar Editör'de yoktur; son basamak yazılır.
+- Etrafından metin akan (kaydırmalı) görsel satır içine alınır.
+- Sekme lider noktaları (…….) çizilmez. Şekil, grafik, SmartArt ve EMF/WMF
+  görseller taşınmaz. Emoji gibi bazı karakterleri Editör açamadığı için
+  □ ile değiştirilir.
+
+
+UDF → WORD: NELER TAŞINIR
+Editör'ün tanıdığı her biçim Word'de karşılığıyla kurulur: paragraf ve yazı
+biçimleri, sekme durakları, listeler (Editör'de göründüğü numara biçimiyle),
+tablolar (yatay birleştirme, iç içe tablo, kenarlık türü, başlık satırı),
+görseller, üstbilgi / altbilgi, sayfa numarası (hizası ve biçimiyle), sayfa
+sonu, kâğıt boyutu ve kenar boşlukları, antet (arka plan görseli).
+
+Bu programın Word'den ürettiği bir UDF'yi geri çevirirseniz, UDF'ye geçerken
+yapılan taklitler de geri alınır: renk bandı gerçek hücre dolgusuna, iç içe
+tablo Word'ün kendi dikey birleştirmesine döner.
+
+UDF → WORD: BİLMENİZ GEREKENLER
+- GÖRSELLER UDF'deki kalitesiyle gelir. UDF'deki görseller çoğu zaman düşük
+  çözünürlüklüdür; program görseli yeniden sıkıştırmaz, yani üstüne kayıp
+  eklemez, ama UDF'de bulunmayan ayrıntıyı da geri getiremez.
+- E-İMZALI UDF'den çıkan Word belgesi imza taşımaz; yalnızca üzerinde
+  çalışmak için bir kopyadır. İmzalı asıl belge UDF'dir.
+- Satır ve sayfa sonları Word'de Editör'dekinden biraz farklı düşebilir
+  (iki program satırı farklı kırar); sayfa sayısı değişebilir.
+- HARFLİ LİSTELER: Dört ve daha çok kalemli harfli listede etiketler
+  Editör'de göründüğü gibi (a, b, c, ç, d…) düz metin olarak yazılır; Word'ün
+  otomatik harf sırası farklı olduğu için bu listelerde otomatik
+  numaralandırma kullanılmaz. Böylece metindeki bent atıfları bozulmaz.
+- UYAP evrakındaki barkod taşınmaz; form alanları düz metne çevrilir.
+
+
+ÖNEMLİ
+- Program kaynak belgenize DOKUNMAZ; yalnız yanına yeni bir dosya yazar.
+- Word'e çevirirken var olan bir Word belgesinin üzerine HİÇBİR ZAMAN yazmaz:
+  "Dilekçe.docx" zaten varsa çıktı "Dilekçe (UDF'den).docx" adını alır.
+- UDF'ye çevirirken aynı adlı bir .udf varsa üzerine yazmadan önce sorar.
+- Belgeler bilgisayarınızdan çıkmaz. Program kendiliğinden internete
+  bağlanmaz.
+
+
+İLK AÇILIŞTA UYARI ÇIKARSA
+Program ücretli bir kod imzalama sertifikasıyla imzalanmadığı için işletim
+sistemi uyarı gösterir:
+
+  Windows : "Ek bilgi" > "Yine de çalıştır"
+  macOS   : Uygulamaya SAĞ TIKLAYIP "Aç" deyin (ilk seferde bir kez)
+
+
+SORUN OLURSA
+Programı komut satırından şu şekilde çalıştırırsanız ayrıntılı çıktı verir:
+
+  Windows : "UDF Cevirici.exe" --sinama --rapor sonuc.txt belge.docx
+  macOS   : "UDF Cevirici.app/Contents/MacOS/UDF Cevirici" --sinama belge.udf
+
+Dosya vermeden --sinama yazarsanız program kendi bütünlüğünü sınar.
+
+
+------------------------------------------------------------
+UDF Çevirici · Av. Arb. Mevlana İbrahim Asım Bilir
+av.ibrahimbilir@gmail.com
+
+Ücretsiz kullanılabilir ve dağıtılabilir; satılamaz.
+Ayrıntılı koşullar: LICENSE dosyası.
+
+Bu program bağımsız bir yardımcı araçtır; UYAP veya Adalet Bakanlığı ile
+bağlantısı yoktur.

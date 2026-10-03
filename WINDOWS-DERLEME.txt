@@ -1,0 +1,70 @@
+UDF ÇEVİRİCİ — WINDOWS DERLEME
+===============================
+
+Amaç: Windows için tek dosyalık bir .exe üretmek.
+
+
+GEREKSİNİM
+----------
+Python 3.9+ (python.org sürümü; Store sürümü değil).
+Kurulumda "Add python.exe to PATH" işaretli olmalı.
+Tcl/Tk 8.6+ gerekir — python.org kurulumu bunu zaten getirir.
+
+
+DERLEME
+-------
+Klasörde derle-windows.bat dosyasını çalıştırın. Betik sırasıyla:
+paketleri kurar, derler, üretilen exe'yi sınar.
+
+Elle yapmayı tercih ederseniz:
+
+    python -m pip install --upgrade pip pyinstaller tkinterdnd2 pillow
+
+    pyinstaller --noconfirm --clean --onefile --windowed ^
+      --name "UDF Cevirici" --icon ikon\uygulama.ico ^
+      --version-file surum_bilgisi.txt ^
+      --collect-all tkinterdnd2 ^
+      --add-data "udf_onizle;udf_onizle" ^
+      uygulama.py
+
+Çıktı: dist\UDF Cevirici.exe
+
+
+SINAMA
+------
+    dist\"UDF Cevirici.exe" --sinama --rapor sinama.txt
+
+Çıktıda "SINAMA TAMAM" beklenir. --windowed derlendiği için exe'nin
+konsolu yoktur; sonuç bu yüzden dosyaya yazdırılır.
+
+Bir .docx ya da .udf yolu eklenirse arayüz açmadan o belgeyi de çevirip doğrular:
+
+    dist\"UDF Cevirici.exe" --sinama --rapor r.txt belge.docx
+
+
+WINDOWS'TA DENENMESİ GEREKENLER
+-------------------------------
+Program macOS'ta geliştirildi; Windows'ta şu ikisine ayrıca bakın:
+
+1. Editör önizlemesi. Program, kurulu UYAP Doküman Editörü'nü şu yerlerde
+   arar:  C:\Program Files*\UYAP*\*Edit*   ve   C:\UYAP*\*Edit*
+   Sınama satırında "UYAP Editör: bulundu, önizleme çalışıyor" yazmalı.
+   "yok" yazıyorsa Editör başka yerdedir: klasörünü (içinde editor_lib.jar
+   olan kurulum klasörü) UYAP_EDITOR_HOME ortam değişkeniyle gösterin ve
+   yolu bildirin ki programa eklensin. Önizleme çalışmasa da çeviri çalışır.
+
+2. JPEG görsel içeren bir Word belgesi çevirin; görsel UDF'de görünmeli.
+
+
+NOTLAR
+------
+· Exe imzalanmamıştır; SmartScreen uyarısı çıkar ("Ek bilgi" >
+  "Yine de çalıştır"). PyInstaller çıktıları bazı antivirüslerde
+  yanlış pozitif verebilir.
+· Program internete bağlanmaz. Derleme sırasında yalnızca paket
+  indirmek için internet gerekir.
+· Sorun çıkarsa sinama.txt içeriğini iletin.
+
+
+UDF Çevirici · Av. Arb. Mevlana İbrahim Asım Bilir
+av.ibrahimbilir@gmail.com
