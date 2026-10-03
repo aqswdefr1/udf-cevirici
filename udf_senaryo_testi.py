@@ -1221,6 +1221,12 @@ def _(d):
     return exp
 
 
+@senaryo('satir_sonu_cr', 'Word\'ün eski satır sonu işareti (w:cr, .doc dönüşümlerinde çıkıyor): iki satır birleşmemeli')
+def _(d):
+    make_docx(d, P(R('Çankaya / ANKARA') + '<w:r><w:cr/></w:r>' + R('VEKİLİ', '<w:b/>')))
+    return lambda u: [] if u.texts() == ['Çankaya / ANKARA', 'VEKİLİ'] else [f'metin: {u.texts()}']
+
+
 @senaryo('pandoc_belgesi', 'Pandoc üretimi DOCX (tablo, görsel, dipnot, iç içe liste, alıntı)')
 def _(d):
     if not shutil.which('pandoc'):

@@ -64,7 +64,7 @@ def docx_words(path, ust_alt=False, ayir=False):
         for p in root.iter(w('p')):               # kelime run'lara bölünmüş olabilir: paragraf bazında birleştir
             inner = {id(t) for q in p.iter(w('p')) if q is not p for t in q.iter()}   # metin kutusu vb.
             out |= words(''.join((f' {t.text or ""} ' if id(t) in raised else (t.text or '')) if t.tag == w('t') else ' '
-                                 for t in p.iter() if t.tag in (w('t'), w('tab'), w('br'))
+                                 for t in p.iter() if t.tag in (w('t'), w('tab'), w('br'), w('cr'))
                                  and id(t) not in dead and id(t) not in inner))
     return out
 

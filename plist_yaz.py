@@ -27,11 +27,19 @@ p["CFBundleDocumentTypes"] = [{
     "LSItemContentTypes": ["org.openxmlformats.wordprocessingml.document"],
     "CFBundleTypeExtensions": ["docx"],
 }, {
+    "CFBundleTypeName": "Eski Word, RTF, ODT ve Pages belgesi",
+    "CFBundleTypeRole": "Viewer",
+    "LSHandlerRank": "Alternate",
+    "CFBundleTypeExtensions": ["doc", "rtf", "odt", "pages"],
+}, {
     "CFBundleTypeName": "UYAP belgesi",
     "CFBundleTypeRole": "Viewer",
     "LSHandlerRank": "Alternate",                   # UYAP Editör'ün varsayılan açıcı olmasına dokunmaz
     "CFBundleTypeExtensions": ["udf"],
 }]
+# .doc/.rtf/.odt/.pages belgesini Word'e ya da Pages'e Word biçimine çevirtmek için (AppleScript)
+p["NSAppleEventsUsageDescription"] = ("Eski Word, RTF ve Pages belgelerini UDF'ye çevirebilmek için belgeyi "
+                                      "Microsoft Word'de ya da Pages'te açıp Word biçiminde kaydettirir.")
 with open(yol, "wb") as f:
     plistlib.dump(p, f)
 print(f"Info.plist güncellendi: sürüm {SURUM} · {TELIF}")

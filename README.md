@@ -1,7 +1,8 @@
 # UDF Çevirici
 
-Word (`.docx`) belgesini, biçimini koruyarak UYAP Doküman Editörü'nün **UDF** biçimine, UDF belgesini
-de **Word**'e çeviren küçük bir masaüstü programı. Yönü dosyanın uzantısı belirler. Windows ve
+Word belgesini, biçimini koruyarak UYAP Doküman Editörü'nün **UDF** biçimine, UDF belgesini
+de **Word**'e çeviren küçük bir masaüstü programı. `.docx` dışında `.doc`, `.rtf`, `.odt` ve (Mac'te)
+`.pages` belgeleri de çevrilir; bunlar önce bilgisayardaki Word'e ya da Pages'e Word biçimine çevirtilir. Yönü dosyanın uzantısı belirler. Windows ve
 macOS'ta çalışır; kurulum gerektirmez.
 
 - Tablolar (birleştirilmiş hücreler dâhil), görseller, numaralı ve madde işaretli listeler,
@@ -102,6 +103,7 @@ python3 udf_docx_testi.py                            # UDF → Word: gidiş dön
 | `uygulama.py` | pencere, çeviri akışı, rapor, öz sınama |
 | `docx_udf.py` | DOCX → UDF dönüştürücü (çekirdek) |
 | `udf_docx.py` | UDF → DOCX dönüştürücü (çekirdek) |
+| `ofis_docx.py` | .doc/.rtf/.odt/.pages → .docx: kurulu Word (Windows'ta COM, Mac'te AppleScript) ya da Pages ile |
 | `udf_dogrula.py` | iki yönün doğrulaması: ofset zinciri, paket bütünlüğü, tablo tutarlılığı, kelime kapsaması |
 | `udf_onizle.py`, `udf_onizle/` | kurulu UYAP Editör'ün motoruyla, pencere açmadan sayfa çizimi |
 | `udf_senaryo_testi.py` | Word → UDF senaryo testleri (DOCX'leri kendisi üretir) |

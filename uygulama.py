@@ -3,7 +3,8 @@
 UDF Çevirici — masaüstü uygulaması.
 
 Word (.docx) belgesini, biçimini koruyarak UYAP Doküman Editörü'nün UDF biçimine;
-UDF belgesini de Word'e çevirir. Yönü dosyanın uzantısı belirler. Hiçbir dış programa
+UDF belgesini de Word'e çevirir. Yönü dosyanın uzantısı belirler. .doc, .rtf, .odt ve .pages
+belgeleri önce bilgisayardaki Word'e (Pages belgesi için Pages'e) Word biçimine çevirtilir. Hiçbir dış programa
 bağlı değildir; belgeler bilgisayardan çıkmaz. İnternet yalnızca kullanıcı güncelleme
 denetimi düğmesine bastığında kullanılır.
 
@@ -26,6 +27,7 @@ if getattr(sys, "frozen", False):                   # PyInstaller paketi
     sys.path.insert(0, os.path.dirname(os.path.abspath(sys.executable)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import ofis_docx
 import udf_docx
 import udf_onizle
 from docx_udf import DonusumHatasi, cevir
@@ -39,7 +41,7 @@ except Exception:
     TEMEL_PENCERE, SURUKLENEBILIR = tk.Tk, False
 
 UYGULAMA_ADI = "UDF Çevirici"
-SURUM = "1.1.4"
+SURUM = "1.2"
 YAZAR = "Av. Arb. Mevlana İbrahim Asım Bilir"
 YAZAR_EK = "av.ibrahimbilir@gmail.com"
 TELIF = "© 2026 Av. Arb. Mevlana İbrahim Asım Bilir"
@@ -53,6 +55,7 @@ SURUM_API = f"https://api.github.com/repos/{DEPO}/releases/latest"
 SURUM_SAYFA = f"https://github.com/{DEPO}/releases/latest"
 
 SAYFA_NO = {"Word'deki gibi": "otomatik", "Ekle": "var", "Ekleme": "yok"}
+KABUL = (".docx", ".udf") + ofis_docx.UZANTILAR      # bırakılabilen belgeler
 DOLGU = {"Renk bandı": "bant", "Yalnız yazı": "yazi", "Yok": "yok"}
 
 
@@ -109,25 +112,34 @@ def belge_cevir(kaynak, hedef_klasor=None, sayfa_no="otomatik", dolgu="bant"):
     belgesinin üzerine ASLA yazılmaz (asıl belge çoğu zaman UDF'nin yanında durur).
     Döner: {'kaynak', 'cikti', 'yon', 'tamam', 'ozet', 'uyarilar', 'dogrulama', 'hata'}
     """
-    ad, uzanti = os.path.splitext(os.path.basename(kaynak))
-    klasor = hedef_klasor or os.path.dirname(os.path.abspath(kaynak))
+    ad, uzanti = os.path.splitext(os.path.basename(kaynak.rstrip("/\\")))
+    klasor = hedef_klasor or os.path.dirname(os.path.abspath(kaynak.rstrip("/\\")))
     ters = uzanti.lower() == ".udf"
+    ofis = ofis_docx.destekli(kaynak)
     s = {"kaynak": kaynak, "cikti": "", "yon": "udf>word" if ters else "word>udf", "tamam": False,
          "ozet": None, "uyarilar": [], "dogrulama": [], "hata": ""}
-    if uzanti.lower() not in (".docx", ".udf"):
-        s["hata"] = ("yalnız .docx ve .udf belgeleri çevrilir. Eski .doc dosyasını Word'de "
-                     "\"Farklı Kaydet → Word Belgesi (.docx)\" ile kaydedin.")
+    if uzanti.lower() not in (".docx", ".udf") and not ofis:
+        s["hata"] = "yalnız Word (.docx, .doc, .rtf, .odt), Pages ve UDF belgeleri çevrilir."
         return s
     cikti = bos_ad(klasor, ad) if ters else os.path.join(klasor, ad + ".udf")
     s["cikti"] = cikti
     gecici = cikti + ".gecici"
+    ara = None                                              # .doc/.rtf/.odt/.pages -> geçici .docx
     try:
         if ters:
             s["ozet"] = udf_docx.cevir(kaynak, gecici)
             tamam, satirlar = dogrula_docx(kaynak, gecici)
         else:
-            s["ozet"] = cevir(kaynak, gecici, sayfa_no, dolgu)
-            tamam, satirlar = dogrula(kaynak, gecici)
+            docx, on_uyari = kaynak, []
+            if ofis:
+                ara = os.path.join(tempfile.mkdtemp(prefix="udf_cevirici_"), "belge.docx")
+                program = ofis_docx.docx_yap(kaynak, ara)
+                docx = ara
+                on_uyari = [f"belge önce {program} ile Word biçimine çevrildi; UDF ve doğrulama bu hâline göre "
+                            "yapıldı"]
+            s["ozet"] = cevir(docx, gecici, sayfa_no, dolgu)
+            s["ozet"]["uyarilar"] = on_uyari + s["ozet"]["uyarilar"]
+            tamam, satirlar = dogrula(docx, gecici)
         s["uyarilar"] = s["ozet"]["uyarilar"]
         s["dogrulama"] = satirlar
         if not tamam:
@@ -137,7 +149,7 @@ def belge_cevir(kaynak, hedef_klasor=None, sayfa_no="otomatik", dolgu="bant"):
             cikti = s["cikti"] = bos_ad(klasor, ad)
         os.replace(gecici, cikti)
         s["tamam"] = True
-    except (DonusumHatasi, udf_docx.DonusumHatasi) as e:
+    except (DonusumHatasi, udf_docx.DonusumHatasi, ofis_docx.OfisHatasi) as e:
         s["hata"] = str(e)
     except OSError as e:
         s["hata"] = f"dosya yazılamadı: {e}"
@@ -149,6 +161,9 @@ def belge_cevir(kaynak, hedef_klasor=None, sayfa_no="otomatik", dolgu="bant"):
                 os.remove(gecici)
             except OSError:
                 pass
+        if ara:
+            import shutil
+            shutil.rmtree(os.path.dirname(ara), ignore_errors=True)
     return s
 
 
@@ -183,6 +198,7 @@ SADE_UYARI = (
     ("Editör'de her sayfada görünür", "Antet sayfa zemini olarak yazıldı. Word'de yalnız bazı sayfalardaydı; "
                                       "Editör'de her sayfada görünür."),
     ("UDF'de sayfa arka planı olarak yazıldı", "Antet, UDF'de sayfa zemini olarak yazıldı (Editör'de her sayfada görünür)."),
+    ("ile Word biçimine çevrildi", None),                   # aşağıda programın adıyla doldurulur
     # --- UDF → Word ---
     ("e-imzalı", "Bu UDF e-imzalıydı; Word belgesi imza taşımaz, yalnızca çalışma kopyasıdır."),
     ("harf sıralı liste", "Harfli liste etiketleri (a, b, c, ç…) Editör'deki hâliyle düz metin yazıldı; "
@@ -206,6 +222,9 @@ def sade_uyarilar(sonuclar, en_cok=4):
     for r in sonuclar:
         for u in r["uyarilar"]:
             sade = next((m for a, m in SADE_UYARI if a in u), u[:1].upper() + u[1:])
+            if sade is None:                                # "belge önce Microsoft Word ile Word biçimine…"
+                program = u.split("belge önce ", 1)[-1].split(" ile ", 1)[0]
+                sade = f"Belge önce {program} ile Word biçimine çevrildi, sonra UDF yapıldı."
             if sade not in gorulen:
                 gorulen.add(sade)
                 liste.append(sade)
@@ -357,8 +376,8 @@ class Uygulama(TEMEL_PENCERE):
                                     else "Çevrilecek Word ya da UDF belgelerini seçin")
         self.birak_yazi.pack()
         alt_yazi = ttk.Label(ic, foreground=self.renk["soluk"], font=("Helvetica", 11),
-                             text="veya tıklayıp seçin · .docx → UDF · .udf → Word" if surukleme
-                             else "tıklayıp seçin · .docx → UDF · .udf → Word")
+                             text="veya tıklayıp seçin · Word ve Pages → UDF · .udf → Word" if surukleme
+                             else "tıklayıp seçin · Word ve Pages → UDF · .udf → Word")
         alt_yazi.pack(pady=(3, 0))
         for w in (self.birak, ic, self.birak_yazi, alt_yazi):
             w.bind("<Button-1>", lambda e: self.dosya_ekle())
@@ -431,8 +450,9 @@ class Uygulama(TEMEL_PENCERE):
         if self.calisiyor:
             return
         secilen = filedialog.askopenfilenames(
-            title="Word ya da UDF belgelerini seçin",
-            filetypes=[("Word ve UDF belgeleri", "*.docx *.udf"), ("Word belgesi", "*.docx"),
+            title="Word, Pages ya da UDF belgelerini seçin",
+            filetypes=[("Word, Pages ve UDF belgeleri", "*.docx *.doc *.rtf *.odt *.pages *.udf"),
+                       ("Word belgesi", "*.docx *.doc *.rtf *.odt"), ("Pages belgesi", "*.pages"),
                        ("UYAP belgesi", "*.udf"), ("Tüm dosyalar", "*.*")])
         self.ekle(list(secilen))
 
@@ -442,11 +462,12 @@ class Uygulama(TEMEL_PENCERE):
         atlanan = []
         for y in yeni:
             y = os.path.abspath(str(y))
-            if os.path.isdir(y):                            # klasör bırakıldıysa içindeki belgeler
+            y = y.rstrip("/\\")
+            if os.path.isdir(y) and not y.lower().endswith(".pages"):   # eski .pages belgesi bir klasördür
                 self.ekle([os.path.join(y, f) for f in sorted(os.listdir(y))
-                           if f.lower().endswith((".docx", ".udf")) and not f.startswith("~$")])
+                           if f.lower().endswith(KABUL) and not f.startswith("~$")])
                 continue
-            if not y.lower().endswith((".docx", ".udf")) or os.path.basename(y).startswith("~$"):
+            if not y.lower().endswith(KABUL) or os.path.basename(y).startswith("~$"):
                 atlanan.append(os.path.basename(y))
                 continue
             if y not in self.yollar and os.path.exists(y):
@@ -455,9 +476,8 @@ class Uygulama(TEMEL_PENCERE):
         self.listeyi_ciz()
         if atlanan:
             self.durum_goster("sari", "Bazı dosyalar eklenmedi",
-                              "Yalnız .docx ve .udf belgeleri çevrilir: " + ", ".join(atlanan[:4])
-                              + (" …" if len(atlanan) > 4 else "")
-                              + "\nEski .doc dosyasını Word'de \"Farklı Kaydet → .docx\" ile kaydedin.")
+                              "Yalnız Word (.docx, .doc, .rtf, .odt), Pages ve UDF belgeleri çevrilir: "
+                              + ", ".join(atlanan[:4]) + (" …" if len(atlanan) > 4 else ""))
 
     def sil(self):
         if self.calisiyor:
@@ -489,7 +509,7 @@ class Uygulama(TEMEL_PENCERE):
             self.ayar.pack(fill="x", pady=(10, 0), after=self.liste_cerceve)
             self.btn_cevir.pack(pady=(12, 0), after=self.ayar)
             self.sayi_yazi.configure(text=f"{len(self.yollar)} belge")
-            if any(y.lower().endswith(".docx") for y in self.yollar):
+            if any(not y.lower().endswith(".udf") for y in self.yollar):
                 self.ayar_word.pack(fill="x", before=self.ayar_kayit)
             else:
                 self.ayar_word.pack_forget()
@@ -679,6 +699,7 @@ class Uygulama(TEMEL_PENCERE):
         ttk.Label(c, justify="center", wraplength=380, text=(
             "Word (.docx) belgesini; tabloları, görselleri, listeleri, üstbilgi ve altbilgisiyle "
             "UYAP Doküman Editörü'nün UDF biçimine, UDF belgesini de aynı şekilde Word'e çevirir. "
+            ".doc, .rtf, .odt ve Pages belgeleri bilgisayardaki Word ya da Pages ile açılarak çevrilir. "
             "Her çıktı üretildikten sonra kaynağıyla karşılaştırılarak doğrulanır.\n\n"
             "Belgeler bilgisayarınızdan çıkmaz; "
             "program kendiliğinden internete bağlanmaz.")).pack()
@@ -866,13 +887,20 @@ def sinama(yollar=None, rapor_yolu=None):
                 editor += f", önizleme çalışıyor ({len(sayfalar)} sayfa)"
             except Exception as e:
                 editor += f", önizleme ÇALIŞMADI ({e})"
+        assert ofis_docx.destekli("x.doc") and ofis_docx.destekli("x.pages") and not ofis_docx.destekli("x.pdf"), \
+            "ofis biçimleri tanınmıyor"
+        if sys.platform == "darwin":
+            ofis = ", ".join(f"{ad}: {'var' if ofis_docx._mac_uygulama_var(b) else 'yok'}"
+                             for ad, b in (("Word", ofis_docx.WORD_MAC), ("Pages", ofis_docx.PAGES_MAC)))
+        else:
+            ofis = "Word: çeviride denenecek"
         try:
             import PIL                                       # noqa
             pil = "Pillow " + PIL.__version__
         except Exception:
             pil = "Pillow yok (JPEG için sistem aracı denenir)"
         yaz(f"SINAMA TAMAM — iki yön, çekirdek ve arayüz çalışıyor (Tcl/Tk {tk.TkVersion}, "
-            f"sürükle-bırak: {dnd}, {pil}, UYAP Editör: {editor}).")
+            f"sürükle-bırak: {dnd}, {pil}, {ofis}, UYAP Editör: {editor}).")
     except AssertionError as e:
         yaz(f"SINAMA BAŞARISIZ — {e}")
         kod = 1
@@ -894,7 +922,7 @@ def main():
         if "--rapor" in sys.argv:
             i = sys.argv.index("--rapor")
             rapor = sys.argv[i + 1] if i + 1 < len(sys.argv) else None
-        return sinama([y for y in sys.argv[1:] if y.lower().endswith((".docx", ".udf"))], rapor)
+        return sinama([y for y in sys.argv[1:] if y.lower().rstrip("/").endswith(KABUL)], rapor)
     if tk.TkVersion < 8.6:
         print(f"UYARI: Tcl/Tk {tk.TkVersion} çok eski; pencere boş görünebilir.", file=sys.stderr)
     uyg = Uygulama()

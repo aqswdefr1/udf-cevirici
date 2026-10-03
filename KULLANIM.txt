@@ -4,8 +4,9 @@ UDF ÇEVİRİCİ
 NE İŞE YARAR
 İki yönde çalışır:
 
-  Word → UDF : Word'de (.docx) yazdığınız dilekçeyi, biçimini bozmadan UYAP
-               Doküman Editörü'nün UDF biçimine çevirir.
+  Word → UDF : Word'de yazdığınız dilekçeyi, biçimini bozmadan UYAP Doküman
+               Editörü'nün UDF biçimine çevirir. .docx dışında eski Word
+               (.doc), .rtf, .odt ve Mac'te Pages (.pages) belgeleri de olur.
   UDF → Word : Elinizdeki UDF belgesini (kendi dilekçeniz, UYAP'tan inen
                evrak) üzerinde çalışabileceğiniz bir Word belgesine çevirir.
 
@@ -15,7 +16,8 @@ sonları korunur. Yönü dosyanın uzantısı belirler; ayrıca seçmeniz gerekm
 
 NASIL KULLANILIR
 1. Programı açın.
-2. Belgeleri pencereye sürükleyin ya da tıklayıp seçin (.docx ya da .udf).
+2. Belgeleri pencereye sürükleyin ya da tıklayıp seçin (.docx, .doc, .rtf,
+   .odt, .pages ya da .udf).
    Birden çok belge, hatta bir klasör bırakabilirsiniz. Listede her
    belgenin yanında neye çevrileceği yazar ("→ UDF" ya da "→ Word").
 3. "Çevir" düğmesine basın.
@@ -31,8 +33,16 @@ geçmezse dosya YAZILMAZ; kırmızı satır sebebini söyler, "Rapor" düğmesi
 ayrıntısını gösterir. Word'dekinden ya da Editör'dekinden farklı olacak
 yerler, çeviri bitince sonuç kutusunda sade bir dille sıralanır.
 
-Eski biçimli .doc dosyaları çevrilmez. Word'de "Farklı Kaydet → Word
-Belgesi (.docx)" ile kaydedip yeniden deneyin.
+ESKİ WORD (.doc), RTF, ODT VE PAGES BELGELERİ
+Program bu biçimleri kendisi okumaz; belgeyi bilgisayarınızdaki Microsoft
+Word'e (Pages belgesi için Pages'e) arka planda açtırıp Word biçimine
+çevirtir, sonra UDF yapar. Word kısa bir an açılıp kapanabilir. Asıl
+belgenize dokunulmaz.
+  - Word kurulu olmalıdır (Mac'te Word yoksa Pages kullanılır).
+  - Pages belgeleri yalnız Mac'te çevrilir.
+  - Mac'te ilk seferde macOS "UDF Çevirici, Microsoft Word'ü denetlemek
+    istiyor" diye sorar; "İzin Ver" deyin. Yanlışlıkla reddettiyseniz:
+    Sistem Ayarları → Gizlilik ve Güvenlik → Otomasyon → UDF Çevirici.
 
 
 AYARLAR (yalnız Word → UDF için)
