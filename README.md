@@ -23,6 +23,7 @@ macOS'ta çalışır; kurulum gerektirmez.
 |---|---|
 | Windows 10/11 | `UDF-Cevirici-…-Windows.zip` |
 | Mac (Apple M işlemcili) | `UDF-Cevirici-…-macOS-AppleSilicon.zip` |
+| Mac (Intel işlemcili) | `UDF-Cevirici-…-macOS-Intel.zip` |
 
 Zip'i açın, programı çalıştırın; kurulum gerekmez. Program imzasız olduğu için ilk açılışta uyarı verir:
 Windows'ta **"Ek bilgi" → "Yine de çalıştır"**, Mac'te uygulamaya **sağ tıklayıp "Aç"**.
