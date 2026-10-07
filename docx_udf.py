@@ -1686,9 +1686,6 @@ def read_document(docx, warn, fill_mode='bant', yan_gorsel=False):
     ctx['body'] = False                           # dipnot ve üst/altbilgide yerleşim taklidi yapılmaz
     blocks = layout_floats(blocks, ctx, warn)
     if ctx['notes']:                              # dipnot/sonnot: belge sonuna numaralı paragraflar
-        rule = _empty_para()
-        rule['runs'] = [['_' * 24, {}]]
-        blocks.append(rule)
         for kind, el, lab in list(ctx['notes']):
             ctx['cur_note'] = lab
             first = True
@@ -1901,10 +1898,6 @@ def build(blocks, info, hf, page_mode='otomatik'):
     def emit_paras(paras, with_rule):
         xs = []
         for p in paras:
-            if with_rule and p.get('border_top'):
-                xml, tx, state['off'] = para_xml(rule_para(p['border_top'], text_w), state['off'])
-                xs.append(xml)
-                text.append(tx)
             xml, tx, state['off'] = para_xml(p, state['off'], max_h)
             xs.append(xml)
             text.append(tx)

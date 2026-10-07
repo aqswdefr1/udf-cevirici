@@ -863,9 +863,9 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
             i += 1
             continue
 
-        # --- B. Yatay Çizgi / Bölücü ---
+        # --- B. Yatay Çizgi / Bölücü (---, ***, ___) ---
+        # UDF'de istenmeyen '______...' alt tire satırlarını önlemek için çizgi üretilmez, sessizce geçilir.
         if re.match(r'^(?:-{3,}|\*{3,}|_{3,})$', satir_str):
-            blocks.append(rule_para(color='000000', text_w=480.0))
             i += 1
             continue
 
@@ -1278,8 +1278,6 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
     # 3. Dipnotlar Bölümü (Varsa belge sonuna ekle)
     kalan_fn = [fn_id for fn_id in dipnot_metinleri if fn_id not in dipnot_sirasi]
     if dipnot_sirasi or kalan_fn:
-        # Küçük bir ayırıcı çizgi
-        blocks.append(rule_para(color='808080', text_w=150.0))
         # Sıraya göre dipnotları yaz
         sirali_dn = sorted(dipnot_sirasi.items(), key=lambda x: x[1])
         next_no = (sirali_dn[-1][1] + 1) if sirali_dn else 1
