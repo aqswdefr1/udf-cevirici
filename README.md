@@ -1,7 +1,7 @@
 # UDF Çevirici
 
-Word belgesini, biçimini koruyarak UYAP Doküman Editörü'nün **UDF** biçimine, UDF belgesini
-de **Word**'e çeviren küçük bir masaüstü programı. `.docx` dışında `.doc`, `.rtf`, `.odt` ve (Mac'te)
+Word ve Markdown belgelerini, biçimini koruyarak UYAP Doküman Editörü'nün **UDF** biçimine, UDF belgesini
+de **Word**'e çeviren küçük bir masaüstü programı. `.docx` ve `.md` dışında `.doc`, `.rtf`, `.odt` ve (Mac'te)
 `.pages` belgeleri de çevrilir; bunlar önce bilgisayardaki Word'e ya da Pages'e Word biçimine çevirtilir. Yönü dosyanın uzantısı belirler. Windows ve
 macOS'ta çalışır; kurulum gerektirmez.
 
@@ -86,12 +86,15 @@ Zorunlu bağımlılık yoktur (Python 3.9+):
 ```
 python3 uygulama.py                  # pencere
 python3 uygulama.py --sinama         # öz sınama
-python3 docx_udf.py belge.docx -o belge.udf          # komut satırı
-python3 udf_docx.py belge.udf -o belge.docx          # ters yön
+python3 docx_udf.py belge.docx -o belge.udf          # Word → UDF komut satırı
+python3 md_udf.py belge.md -o belge.udf              # Markdown → UDF komut satırı
+python3 udf_docx.py belge.udf -o belge.docx          # ters yön (UDF → Word)
 python3 udf_dogrula.py belge.docx belge.udf          # doğrulama (sıra yönü belirler)
+python3 udf_dogrula.py belge.md belge.udf            # Markdown doğrulama
 python3 udf_dogrula.py belge.udf belge.docx
 python3 udf_onizle.py belge.udf -o onizleme          # Editör motoruyla sayfa PNG'leri
 python3 udf_senaryo_testi.py --editor                # Word → UDF senaryo testleri
+python3 md_udf_testi.py                              # Markdown → UDF senaryo testleri
 python3 udf_docx_testi.py                            # UDF → Word: gidiş dönüş + Editör örnekleri
 ```
 
@@ -103,11 +106,13 @@ python3 udf_docx_testi.py                            # UDF → Word: gidiş dön
 |---|---|
 | `uygulama.py` | pencere, çeviri akışı, rapor, öz sınama |
 | `docx_udf.py` | DOCX → UDF dönüştürücü (çekirdek) |
+| `md_udf.py` | Markdown (.md) → UDF dönüştürücü (çekirdek) |
 | `udf_docx.py` | UDF → DOCX dönüştürücü (çekirdek) |
 | `ofis_docx.py` | .doc/.rtf/.odt/.pages → .docx: kurulu Word (Windows'ta COM, Mac'te AppleScript) ya da Pages ile |
-| `udf_dogrula.py` | iki yönün doğrulaması: ofset zinciri, paket bütünlüğü, tablo tutarlılığı, kelime kapsaması |
+| `udf_dogrula.py` | doğrulama: ofset zinciri, paket bütünlüğü, tablo tutarlılığı, kelime kapsaması |
 | `udf_onizle.py`, `udf_onizle/` | kurulu UYAP Editör'ün motoruyla, pencere açmadan sayfa çizimi |
 | `udf_senaryo_testi.py` | Word → UDF senaryo testleri (DOCX'leri kendisi üretir) |
+| `md_udf_testi.py` | Markdown → UDF senaryo testleri: başlıklar, biçimler, listeler, tablolar |
 | `udf_docx_testi.py` | UDF → Word testleri: gidiş dönüş karşılaştırması ve elle kurulan Editör örnekleri |
 
 ## Koşullar

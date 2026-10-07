@@ -28,6 +28,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.join(HERE, 'docx_udf.py')
 sys.path.insert(0, HERE)
 
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 NSDECL = (
     'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
     'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
@@ -1298,7 +1309,7 @@ def main():
             rows.append((name, note, 'ATLANDI', ['gerekli araç yok']))
             continue
         r = subprocess.run([sys.executable, TOOL, docx, '-o', udf] + SCEN_ARGS.get(name, []),
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding='utf-8', errors='replace')
         if r.returncode != 0:
             last = (r.stderr.strip().splitlines() or r.stdout.strip().splitlines() or ['?'])[-1]
             rows.append((name, note, 'ÇÖKTÜ', [last[:160]]))
@@ -1321,7 +1332,8 @@ def main():
                 errs = [f'udf_dogrula çöktü: {type(ex).__name__}: {ex}'[:200]]
         if a.editor and not errs:
             rr = subprocess.run([sys.executable, os.path.join(HERE, 'udf_onizle.py'), udf,
-                                 '-o', os.path.join(work, '_onizleme')], capture_output=True, text=True)
+                                 '-o', os.path.join(work, '_onizleme')], capture_output=True, text=True,
+                                encoding='utf-8', errors='replace')
             if rr.returncode != 0:
                 errs = ['Editör motoru bu UDF\'yi açamadı/çizemedi: '
                         + ((rr.stderr or rr.stdout).strip().splitlines() or ['?'])[0][:140]]

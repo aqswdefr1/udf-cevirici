@@ -27,6 +27,11 @@ p["CFBundleDocumentTypes"] = [{
     "LSItemContentTypes": ["org.openxmlformats.wordprocessingml.document"],
     "CFBundleTypeExtensions": ["docx"],
 }, {
+    "CFBundleTypeName": "Markdown belgesi",
+    "CFBundleTypeRole": "Viewer",
+    "LSHandlerRank": "Alternate",
+    "CFBundleTypeExtensions": ["md", "markdown"],
+}, {
     "CFBundleTypeName": "Eski Word, RTF, ODT ve Pages belgesi",
     "CFBundleTypeRole": "Viewer",
     "LSHandlerRank": "Alternate",

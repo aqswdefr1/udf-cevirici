@@ -27,6 +27,18 @@ if getattr(sys, "frozen", False):                   # PyInstaller paketi
     sys.path.insert(0, os.path.dirname(os.path.abspath(sys.executable)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+import md_udf
 import ofis_docx
 import udf_docx
 import udf_onizle
@@ -55,7 +67,7 @@ SURUM_API = f"https://api.github.com/repos/{DEPO}/releases/latest"
 SURUM_SAYFA = f"https://github.com/{DEPO}/releases/latest"
 
 SAYFA_NO = {"Word'deki gibi": "otomatik", "Ekle": "var", "Ekleme": "yok"}
-KABUL = (".docx", ".udf") + ofis_docx.UZANTILAR      # bırakılabilen belgeler
+KABUL = (".docx", ".udf", ".md", ".markdown") + ofis_docx.UZANTILAR      # bırakılabilen belgeler
 DOLGU = {"Renk bandı": "bant", "Yalnız yazı": "yazi", "Yok": "yok"}
 
 
@@ -115,11 +127,12 @@ def belge_cevir(kaynak, hedef_klasor=None, sayfa_no="otomatik", dolgu="bant"):
     ad, uzanti = os.path.splitext(os.path.basename(kaynak.rstrip("/\\")))
     klasor = hedef_klasor or os.path.dirname(os.path.abspath(kaynak.rstrip("/\\")))
     ters = uzanti.lower() == ".udf"
+    is_md = uzanti.lower() in (".md", ".markdown")
     ofis = ofis_docx.destekli(kaynak)
-    s = {"kaynak": kaynak, "cikti": "", "yon": "udf>word" if ters else "word>udf", "tamam": False,
+    s = {"kaynak": kaynak, "cikti": "", "yon": "udf>word" if ters else ("md>udf" if is_md else "word>udf"), "tamam": False,
          "ozet": None, "uyarilar": [], "dogrulama": [], "hata": ""}
-    if uzanti.lower() not in (".docx", ".udf") and not ofis:
-        s["hata"] = "yalnız Word (.docx, .doc, .rtf, .odt), Pages ve UDF belgeleri çevrilir."
+    if uzanti.lower() not in (".docx", ".udf", ".md", ".markdown") and not ofis:
+        s["hata"] = "yalnız Word (.docx, .doc, .rtf, .odt), Pages, Markdown (.md) ve UDF belgeleri çevrilir."
         return s
     cikti = bos_ad(klasor, ad) if ters else os.path.join(klasor, ad + ".udf")
     s["cikti"] = cikti
@@ -129,6 +142,9 @@ def belge_cevir(kaynak, hedef_klasor=None, sayfa_no="otomatik", dolgu="bant"):
         if ters:
             s["ozet"] = udf_docx.cevir(kaynak, gecici)
             tamam, satirlar = dogrula_docx(kaynak, gecici)
+        elif is_md:
+            s["ozet"] = md_udf.cevir(kaynak, gecici, sayfa_no=sayfa_no)
+            tamam, satirlar = dogrula(kaynak, gecici)
         else:
             docx, on_uyari = kaynak, []
             if ofis:
@@ -149,7 +165,7 @@ def belge_cevir(kaynak, hedef_klasor=None, sayfa_no="otomatik", dolgu="bant"):
             cikti = s["cikti"] = bos_ad(klasor, ad)
         os.replace(gecici, cikti)
         s["tamam"] = True
-    except (DonusumHatasi, udf_docx.DonusumHatasi, ofis_docx.OfisHatasi) as e:
+    except (DonusumHatasi, md_udf.DonusumHatasi, udf_docx.DonusumHatasi, ofis_docx.OfisHatasi) as e:
         s["hata"] = str(e)
     except OSError as e:
         s["hata"] = f"dosya yazılamadı: {e}"
@@ -234,7 +250,8 @@ def sade_uyarilar(sonuclar, en_cok=4):
 def rapor_metni(sonuclar):
     s = ["UDF ÇEVİRİCİ — ÇEVİRİ RAPORU", ""]
     for i, r in enumerate(sonuclar, 1):
-        s.append(f"{i}. {os.path.basename(r['kaynak'])}   ({'UDF → Word' if r['yon'] == 'udf>word' else 'Word → UDF'})")
+        yon_str = 'UDF → Word' if r['yon'] == 'udf>word' else ('Markdown → UDF' if r['yon'] == 'md>udf' else 'Word → UDF')
+        s.append(f"{i}. {os.path.basename(r['kaynak'])}   ({yon_str})")
         if r["tamam"]:
             o = r["ozet"]
             s.append(f"   ✓ Çevrildi → {r['cikti']}")
@@ -258,7 +275,7 @@ def rapor_metni(sonuclar):
             s.append("   Doğrulama:")
             s += [f"     {d}" for d in r["dogrulama"]]
         s.append("")
-    if any(r["yon"] == "word>udf" for r in sonuclar):
+    if any(r["yon"] in ("word>udf", "md>udf") for r in sonuclar):
         s += ["UDF'yi UYAP'a yüklemeden önce UYAP Doküman Editörü'nde açıp bir kez gözle",
               "kontrol etmeniz önerilir."]
     if any(r["yon"] == "udf>word" for r in sonuclar):
@@ -450,10 +467,10 @@ class Uygulama(TEMEL_PENCERE):
         if self.calisiyor:
             return
         secilen = filedialog.askopenfilenames(
-            title="Word, Pages ya da UDF belgelerini seçin",
-            filetypes=[("Word, Pages ve UDF belgeleri", "*.docx *.doc *.rtf *.odt *.pages *.udf"),
-                       ("Word belgesi", "*.docx *.doc *.rtf *.odt"), ("Pages belgesi", "*.pages"),
-                       ("UYAP belgesi", "*.udf"), ("Tüm dosyalar", "*.*")])
+            title="Word, Pages, Markdown ya da UDF belgelerini seçin",
+            filetypes=[("Word, Pages, Markdown ve UDF belgeleri", "*.docx *.doc *.rtf *.odt *.pages *.md *.markdown *.udf"),
+                       ("Word belgesi", "*.docx *.doc *.rtf *.odt"), ("Markdown belgesi", "*.md *.markdown"),
+                       ("Pages belgesi", "*.pages"), ("UYAP belgesi", "*.udf"), ("Tüm dosyalar", "*.*")])
         self.ekle(list(secilen))
 
     def ekle(self, yeni):
@@ -476,7 +493,7 @@ class Uygulama(TEMEL_PENCERE):
         self.listeyi_ciz()
         if atlanan:
             self.durum_goster("sari", "Bazı dosyalar eklenmedi",
-                              "Yalnız Word (.docx, .doc, .rtf, .odt), Pages ve UDF belgeleri çevrilir: "
+                              "Yalnız Word (.docx, .doc, .rtf, .odt), Pages, Markdown (.md) ve UDF belgeleri çevrilir: "
                               + ", ".join(atlanan[:4]) + (" …" if len(atlanan) > 4 else ""))
 
     def sil(self):
@@ -812,7 +829,11 @@ def sinama(yollar=None, rapor_yolu=None):
     def yaz(*p):
         metin = " ".join(str(x) for x in p)
         satirlar.append(metin)
-        print(metin)
+        try:
+            print(metin)
+        except UnicodeEncodeError:
+            enc = sys.stdout.encoding or "ascii"
+            print(metin.encode(enc, "replace").decode(enc, "replace"))
     kod = 0
     try:
         assert tk.TkVersion >= 8.6, f"Tcl/Tk {tk.TkVersion} çok eski (8.6+ gerekir)"
@@ -854,6 +875,27 @@ def sinama(yollar=None, rapor_yolu=None):
         assert "<w:tbl>" in govde and "ğüşıöç İĞÜŞÖÇ" in govde, "Word çıktısının içeriği eksik"
         kotu = belge_cevir(os.path.join(klasor, "yok.udf"), klasor)
         assert not kotu["tamam"] and kotu["hata"], "olmayan UDF için hata üretilmedi"
+
+        # Markdown → UDF yönü sınaması
+        ornek_md = os.path.join(klasor, "sınama belgesi.md")
+        with open(ornek_md, "w", encoding="utf-8") as f:
+            f.write("# Sınama Belgesi (Markdown)\n\n"
+                    "**ANKARA 1. ASLİYE HUKUK MAHKEMESİNE**\n\n"
+                    "Bu bir *Markdown* belgesidir. ğüşıöç İĞÜŞÖÇ.\n\n"
+                    "| Kalem | Miktar | Tutar |\n"
+                    "|---|:---:|---:|\n"
+                    "| Dava Değeri | 1 | 50.000 TL |\n\n"
+                    "1. Birinci madde\n"
+                    "2. İkinci madde\n")
+        m = belge_cevir(ornek_md, klasor)
+        yaz(f"{'✓' if m['tamam'] else '✕'} sınama belgesi.md → {os.path.basename(m['cikti'])}"
+            + ("" if m["tamam"] else f" — {m['hata']}"))
+        for d in m["dogrulama"]:
+            yaz(f"    {d}")
+        assert m["tamam"], "Markdown → UDF çevirisi başarısız: " + m["hata"]
+        with zipfile.ZipFile(m["cikti"]) as z:
+            m_xml = z.read("content.xml").decode("utf-8")
+        assert "<table " in m_xml and "ğüşıöç İĞÜŞÖÇ" in m_xml, "Markdown UDF içeriği eksik"
 
         # Arayüz kuruluyor ve bir belgeyi uçtan uca çevirebiliyor mu? (pencere gösterilmez)
         uyg = Uygulama()

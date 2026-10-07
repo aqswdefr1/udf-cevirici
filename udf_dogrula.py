@@ -19,6 +19,7 @@ Ters yön (UDF -> DOCX, udf_docx.py çıktısı) için kesin denetimler:
 
 Kullanım:
     python3 araclar/udf_dogrula.py belge.docx belge.udf      (DOCX -> UDF denetimi)
+    python3 araclar/udf_dogrula.py belge.md belge.udf        (Markdown -> UDF denetimi)
     python3 araclar/udf_dogrula.py belge.udf belge.docx      (UDF -> DOCX denetimi)
 Çıkış kodu 0 = GEÇTİ, 1 = KALDI.
 """
@@ -30,6 +31,17 @@ import zipfile
 from xml.etree import ElementTree as ET
 
 W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 
 def w(t):
@@ -69,7 +81,78 @@ def docx_words(path, ust_alt=False, ayir=False):
     return out
 
 
-def dogrula(docx, udf):
+def _is_yaml_frontmatter(lines):
+    if not lines:
+        return False
+    has_kv = False
+    for line in lines:
+        s = line.strip()
+        if not s or s.startswith('#'):
+            continue
+        if re.match(r'^[a-zA-Z0-9_\-]+\s*:\s*.*$', s):
+            has_kv = True
+        else:
+            return False
+    return has_kv
+
+
+def md_words(path):
+    """Markdown dosyasındaki kelimeleri (biçimlendirme işaretlerini soyarak) çıkarır."""
+    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+        text = f.read()
+    lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    if lines and lines[0].strip() == '---':
+        idx = 1
+        fm_lines = []
+        while idx < len(lines) and lines[idx].strip() not in ('---', '...'):
+            fm_lines.append(lines[idx])
+            idx += 1
+        if idx < len(lines) and _is_yaml_frontmatter(fm_lines):
+            t_words = set()
+            for fl in fm_lines:
+                m_t = re.search(r'(?:title|baslik)\s*:\s*(.*)', fl, re.IGNORECASE)
+                if m_t:
+                    t_words |= words(m_t.group(1))
+            return t_words | _md_text_words('\n'.join(lines[idx + 1:]))
+    return _md_text_words(text)
+
+
+def _md_text_words(text):
+    # Sayfa sonu kalıpları UDF sayfa sonuna dönüştüğü için gövde metninde yer almaz
+    text = re.sub(r'(?i)---sayfa[\s\-_]*sonu---', ' ', text)
+    text = re.sub(r'(?i)\\pagebreak', ' ', text)
+    text = re.sub(r'(?i)\\newpage', ' ', text)
+    text = re.sub(r'(?i)<!--\s*page[\s\-_]*break\s*-->', ' ', text)
+    text = re.sub(r'(?i)<page-break\s*/?>', ' ', text)
+    text = re.sub(r'(?i)<pagebreak\s*/?>', ' ', text)
+    # Görseller: ![alt](url) -> UDF'de gövde görseli olarak saklanır; alt metin gövde metnine girmez
+    text = re.sub(r'!\[[^\]]*\]\([^)]+\)', ' ', text)
+    # Bağlantılar: [metin](url) -> metin
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r' \1 ', text)
+    # Dipnot referans ve tanımları: [^id]: -> boşluk
+    text = re.sub(r'\[\^[a-zA-Z0-9_\-]+\]:?', ' ', text)
+    # HTML etiketleri: <...> -> boşluk
+    text = re.sub(r'<[^>]+>', ' ', text)
+    # Kod blokları ```...```
+    text = re.sub(r'```[a-zA-Z0-9_-]*', ' ', text)
+    # Tablo ayırıcıları |:---|---:|
+    text = re.sub(r'\|[\s:\-]+(?=\|)', ' ', text)
+    # Vurgu ve biçim işaretleri: ~~üstü çizili~~, ==vurgu==, ~alt simge~, ^üst simge^
+    text = re.sub(r'~~([^~]+)~~', r' \1 ', text)
+    text = re.sub(r'==([^=]+)==', r' \1 ', text)
+    text = re.sub(r'~([^~\s]+)~', r'\1', text)
+    text = re.sub(r'\^([^^ \s]+)\^', r'\1', text)
+    # Liste işaretleri (1. , a. , (1) , i. , - , * vb.) UDF özniteliğine dönüştüğü için gövde metninde yer almaz
+    # (Tekil harfler, roman rakamları veya sayılar; "Açıklamalar." gibi tam sözcükler silinmemeli)
+    text = re.sub(
+        r'(?m)^\s*(?:[-*+]|(?:\([0-9a-zA-ZçÇğĞıİöÖşŞüÜ]+\)[\.\)-]?|(?:\d+|[a-zA-ZçÇğĞıİöÖşŞüÜ]|(?:[ivxlcdm]+|[IVXLCDM]+))[\.\)-]))\s+',
+        ' ',
+        text
+    )
+    return words(text)
+
+
+def dogrula(kaynak, udf):
     """(gecti_mi, satirlar) döndürür; satirlar ekrana/rapora yazılacak metinlerdir."""
     out, errs = [], []
     try:
@@ -128,12 +211,15 @@ def dogrula(docx, udf):
             t = sl(c)
             pieces.append(f' {t} ' if c.get('superscript') or c.get('subscript') else t)
     udf_words = words(''.join(pieces)) | words(cdata)
+    is_md = kaynak.lower().endswith(('.md', '.markdown'))
     try:
-        dw = docx_words(docx)
+        dw = md_words(kaynak) if is_md else docx_words(kaynak)
     except Exception as ex:
-        return False, out + [f'HATA: DOCX okunamadı: {ex}', 'SONUÇ: KALDI']
+        tur = 'Markdown' if is_md else 'DOCX'
+        return False, out + [f'HATA: {tur} okunamadı: {ex}', 'SONUÇ: KALDI']
     missing = sorted(dw - udf_words)
-    out.append(f'Kelime kapsaması: DOCX\'teki {len(dw)} farklı kelimenin {len(dw) - len(missing)} tanesi UDF\'de var')
+    kaynak_ad = 'Markdown' if is_md else 'DOCX'
+    out.append(f'Kelime kapsaması: {kaynak_ad}\'taki {len(dw)} farklı kelimenin {len(dw) - len(missing)} tanesi UDF\'de var')
     if missing:
         errs.append(f'UDF\'de bulunmayan {len(missing)} kelime: {", ".join(missing[:15])}'
                     + (' …' if len(missing) > 15 else ''))
