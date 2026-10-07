@@ -67,6 +67,119 @@ MAHKEME_EKLERI = (
     'İCRA DAİRESİNE', 'KURULUNA', 'BAKANLIĞINA', 'NOTERLİĞİNE'
 )
 
+# Dilekçe ana bölüm başlıkları (Rehber UDF'deki AÇIKLAMALAR gibi ortalı ve kalın)
+BOLUM_BASLIKLARI = (
+    'AÇIKLAMALAR', 'AÇIKLAMA', 'TALEP VE SONUÇ', 'SONUÇ VE İSTEM',
+    'NETİCE VE TALEP', 'SONUÇ VE TALEP', 'HUKUKİ SEBEPLER',
+    'HUKUKİ DELİLLER', 'DELİLLER'
+)
+
+def _tr_upper(text):
+    """Türkçe karakterleri gözeterek büyük harfe çevirir (i -> İ, ı -> I, â -> A vb.)."""
+    if not text:
+        return ""
+    return (text.replace('i', 'İ')
+            .replace('ı', 'I')
+            .replace('â', 'A')
+            .replace('Â', 'A')
+            .replace('î', 'İ')
+            .replace('Î', 'İ')
+            .replace('û', 'U')
+            .replace('Û', 'U')
+            .upper())
+
+
+def _is_mahkeme_basligi(text):
+    """Metnin mahkeme veya resmi merci başlığı olup olmadığını belirler."""
+    if not text:
+        return False
+    t = _tr_upper(text.strip().rstrip(':').strip())
+    # Kesme işaretlerini temizle (Mahkemesi'ne -> MAHKEMESİNE)
+    t = re.sub(r"['’]", "", t)
+    if t in ('T.C.', 'T.C', 'TC'):
+        return True
+    return any(t.endswith(ek) for ek in MAHKEME_EKLERI)
+
+
+# UYAP Doküman Editörü standart sayfa ve düzen sabitleri (Rehber: soldan 2.5cm, diğerleri 1.5cm)
+VARSAYILAN_KENAR_BOSLUGU = [70.8661413192749, 42.51968479156494, 42.51968479156494, 42.51968479156494]
+VARSAYILAN_HEADER_OFFSET = '20.0'
+VARSAYILAN_FOOTER_OFFSET = '20.0'
+VARSAYILAN_FOOTER_SPEC = 2088  # BSP32_2088: ortalı, "Sayfa / Toplam" (1 / N)
+
+
+def _parse_margin_val(v):
+    """Tek bir kenar boşluğu değerini puntoya (pt) çevirir."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v) * (72.0 / 2.54) if float(v) <= 15.0 else float(v)
+    s = str(v).strip().lower()
+    if not s:
+        return None
+    m = re.match(r'^([\d\.,]+)\s*(cm|mm|pt|in)?$', s)
+    if not m:
+        return None
+    num_str = m.group(1).replace(',', '.')
+    unit = m.group(2)
+    try:
+        val = float(num_str)
+    except ValueError:
+        return None
+    if unit == 'cm':
+        return val * (72.0 / 2.54)
+    elif unit == 'mm':
+        return val * (72.0 / 25.4)
+    elif unit == 'in':
+        return val * 72.0
+    elif unit == 'pt':
+        return val
+    else:
+        # Birimsiz sayı: <= 15.0 ise cm kabul et, > 15.0 ise punto kabul et
+        return val * (72.0 / 2.54) if val <= 15.0 else val
+
+
+def _parse_margins(val):
+    """Kenar boşluklarını punto listesine [sol, sag, ust, alt] çevirir.
+    Girdi:
+      - 4 değer: [sol, sag, ust, alt]
+      - 2 değer: [sol, digerleri] -> [sol, diger, diger, diger]
+      - 1 değer: tüm kenarlar eşit
+    Birimler: cm, mm, pt, in veya birimsiz sayı.
+    Hatalı/tanınmayan girdilerde None döner (istisna fırlatmaz).
+    """
+    if not val:
+        return None
+
+    if isinstance(val, (list, tuple)):
+        items = [_parse_margin_val(x) for x in val]
+        if any(x is None for x in items):
+            return None
+        if len(items) == 4:
+            return items
+        elif len(items) == 2:
+            return [items[0], items[1], items[1], items[1]]
+        elif len(items) == 1:
+            return [items[0], items[0], items[0], items[0]]
+        return None
+
+    if isinstance(val, str):
+        if ',' in val or ';' in val:
+            parts = [p.strip() for p in re.split(r'[,;]+', val.strip()) if p.strip()]
+        else:
+            parts = re.findall(r'[\d\.,]+\s*(?:cm|mm|pt|in)?|[a-zA-Z]+', val.strip())
+        items = [_parse_margin_val(p) for p in parts]
+        if any(x is None for x in items):
+            return None
+        if len(items) == 4:
+            return items
+        elif len(items) == 2:
+            return [items[0], items[1], items[1], items[1]]
+        elif len(items) == 1:
+            return [items[0], items[0], items[0], items[0]]
+
+    return None
+
 ROMAN_VALS = {
     'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10,
     'xi': 11, 'xii': 12, 'xiii': 13, 'xiv': 14, 'xv': 15, 'xvi': 16, 'xvii': 17, 'xviii': 18, 'xix': 19, 'xx': 20
@@ -308,12 +421,12 @@ def gorsel_yukle(url_veya_yol, base_dir, warn):
     except Exception:
         w_pt, h_pt = 200.0, 150.0
 
-    # Sayfa genişliğine sığdır (yaklaşık 450 pt)
-    max_w = 450.0
+    # Sayfa genişliğine sığdır (metin alanı ≈ 480 pt)
+    max_w = 480.0
     if w_pt > max_w:
         h_pt = h_pt * max_w / w_pt
         w_pt = max_w
-    max_h = 650.0
+    max_h = 700.0
     if h_pt > max_h:
         w_pt = w_pt * max_h / h_pt
         h_pt = max_h
@@ -339,6 +452,20 @@ def parse_inlines(metin, base_fmt=None, base_dir='.', warn=None, dipnotlar=None)
 
     runs = []
 
+    # Dilekçe başlık/etiket ve numaralandırma önekleri kontrolü:
+    # 1-) veya DAVACI : gibi etiketler başlangıçta yer alıyorsa koyu yap
+    m_lbl = re.match(
+        r'^(?P<lbl>(?:\d+-\))|(?:(?:ESAS\s+NO|DAVACI|DAVALI|VEK[İI]L[İI]|VEK[İI]L|KONU|HUKUK[İI]\s+SEBEPLER|HUKUK[İI]\s+NEDENLER|HUKUK[İI]\s+DEL[İI]LLER|DEL[İI]LLER|SONU[ÇC]\s+VE\s+[İI]STEM|TALEP\s+VE\s+SONU[ÇC]|NET[İI]CE\s+VE\s+TALEP|DAVA)(?:[\t ]*:)))(?P<rest>\s+.*|$)',
+        metin,
+        re.IGNORECASE
+    )
+    if m_lbl and not metin.startswith(('*', '_', '<', '#')):
+        lbl_text = m_lbl.group('lbl')
+        rest_text = m_lbl.group('rest')
+        fmt = dict(base_fmt, bold=True)
+        runs.append([_kacis_coz(lbl_text), fmt])
+        metin = rest_text
+
     # Öncelikli regex kalıpları
     # Kod bloğu: `kod`
     # Görsel: ![alt](url)
@@ -356,7 +483,8 @@ def parse_inlines(metin, base_fmt=None, base_dir='.', warn=None, dipnotlar=None)
     #                  <img ..>, <br>
 
     token_pat = re.compile(
-        r'(?P<code>`[^`]+`)'
+        r'(?P<eimza>(?:[\(\[])(?:e-imza\s+ile\s+imzalanm[ıi][sş]t[ıi]r|elektronik\s+imza(?:s[ıi])?\s+ile\s+imzalanm[ıi][sş]t[ıi]r|e-imzal[ıi](?:d[ıi]r)?|elektronik\s+imzal[ıi](?:d[ıi]r)?|elektronik\s+imza(?:s[ıi])?|e-imza)(?:[\)\]])|(?<!\w)(?:e-imzal[ıi]d[ıi]r|elektronik\s+imzal[ıi]d[ıi]r)(?!\w))'
+        r'|(?P<code>`[^`]+`)'
         r'|(?P<img>!\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\))'
         r'|(?P<link>\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\))'
         r'|(?P<fn>\[\^(?P<fn_id>[a-zA-Z0-9_\-]+)\])'
@@ -391,7 +519,12 @@ def parse_inlines(metin, base_fmt=None, base_dir='.', warn=None, dipnotlar=None)
             runs.append([_kacis_coz(duz), dict(base_fmt)])
 
         g = m.groupdict()
-        if g.get('code'):
+        if g.get('eimza'):
+            eimza_metin = m.group('eimza')
+            fmt = dict(base_fmt, bold=True, italic=True, color='0000FF')
+            runs.append([eimza_metin, fmt])
+
+        elif g.get('code'):
             kod_metin = m.group('code')[1:-1]
             fmt = dict(base_fmt, font='Courier New', size=10.5)
             runs.append([_kacis_coz(kod_metin), fmt])
@@ -646,7 +779,7 @@ def tablo_hizalamalari(ayirici_satir):
 # Belge Blokları Ayrıştırıcısı
 # --------------------------------------------------------------------------
 
-def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, warn=None):
+def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, warn=None, kenar_boslugu=None):
     """Markdown metnini UDF bloklarına dönüştürür.
 
     Döner: (blocks, info, hf, warn)
@@ -678,6 +811,8 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
                     v = v.strip().strip('"\'')
                     if k in ('title', 'baslik'):
                         baslik_etiketi = v
+                    elif k in ('margins', 'margin', 'kenar_boslugu', 'kenar_bosluklari') and not kenar_boslugu:
+                        kenar_boslugu = _parse_margins(v)
         else:
             idx = 0  # Gerçek frontmatter değil; yatay çizgi ve içeriği koru
 
@@ -730,7 +865,7 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
 
         # --- B. Yatay Çizgi / Bölücü ---
         if re.match(r'^(?:-{3,}|\*{3,}|_{3,})$', satir_str):
-            blocks.append(rule_para(color='000000', text_w=450.0))
+            blocks.append(rule_para(color='000000', text_w=480.0))
             i += 1
             continue
 
@@ -760,16 +895,22 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
             alt_satir = satirlar[i + 1].strip()
             if re.match(r'^={3,}$', alt_satir):  # H1
                 p = _empty_para()
-                al = 1 if h1_ortala else 0
-                runs = parse_inlines(satir_str, {'bold': True, 'size': 16}, base_dir, warn, dipnot_sirasi)
+                is_m = _is_mahkeme_basligi(satir_str)
+                is_b = (_tr_upper(satir_str) in BOLUM_BASLIKLARI)
+                al = 1 if (h1_ortala or is_m or is_b) else 0
+                sz = 14 if is_m else 16
+                runs = parse_inlines(satir_str, {'bold': True, 'size': sz}, base_dir, warn, dipnot_sirasi)
                 p.update(align=al, runs=runs, before=14.0, after=6.0)
                 blocks.append(p)
                 i += 2
                 continue
             elif re.match(r'^-{3,}$', alt_satir) and not tablo_ayirici_mi(alt_satir):  # H2
                 p = _empty_para()
+                is_m = _is_mahkeme_basligi(satir_str)
+                is_b = (_tr_upper(satir_str) in BOLUM_BASLIKLARI)
+                al = 1 if (is_m or is_b) else 0
                 runs = parse_inlines(satir_str, {'bold': True, 'size': 14}, base_dir, warn, dipnot_sirasi)
-                p.update(align=0, runs=runs, before=10.0, after=4.0)
+                p.update(align=al, runs=runs, before=10.0, after=4.0)
                 blocks.append(p)
                 i += 2
                 continue
@@ -783,11 +924,14 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
             # Hizalama tespiti:
             # - Başlık metninde <center> etiketi var mı?
             # - Mahkeme adı mı? (.. MAHKEMESİNE vb.)
+            # - Bölüm başlığı mı? (AÇIKLAMALAR vb.)
             # - H1 ortalama seçeneği açık mı?
+            is_mahkeme = _is_mahkeme_basligi(b_metin)
+            is_bolum = (_tr_upper(b_metin) in BOLUM_BASLIKLARI)
             al = 0
             if ('<center>' in b_metin.lower() or b_metin.startswith('->')
-                    or any(b_metin.upper().endswith(ek) for ek in MAHKEME_EKLERI)
-                    or b_metin.upper() in ('T.C.', 'T.C')
+                    or is_mahkeme
+                    or is_bolum
                     or (seviye == 1 and h1_ortala)):
                 al = 1
 
@@ -799,10 +943,15 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
             boyutlar = {1: (16, 14.0, 6.0), 2: (14, 10.0, 4.0), 3: (13, 8.0, 3.0),
                         4: (12, 6.0, 2.0), 5: (12, 4.0, 2.0), 6: (12, 4.0, 2.0)}
             sz, bef, aft = boyutlar.get(seviye, (12, 4.0, 2.0))
+            if is_mahkeme:
+                sz = 14
+                bef = 14.0
+                aft = 6.0
             is_it = True if seviye in (5, 6) else False
 
             p = _empty_para()
-            runs = parse_inlines(b_metin, {'bold': True if seviye <= 5 else False, 'italic': is_it, 'size': sz},
+            runs = parse_inlines(b_metin, {'bold': True if (seviye <= 5 or is_mahkeme or is_bolum) else False,
+                                           'italic': is_it, 'size': sz},
                                  base_dir, warn, dipnot_sirasi)
             p.update(align=al, runs=runs, before=bef, after=aft)
             blocks.append(p)
@@ -1053,28 +1202,57 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
             al = varsayilan_hiza
             p_strip = p_metin.strip()
 
+            is_m = _is_mahkeme_basligi(p_strip)
+            clean_b = re.sub(r'[*_~]', '', p_strip).strip()
+            is_bolum = (_tr_upper(clean_b) in BOLUM_BASLIKLARI)
+            is_sig = bool(re.search(r'(?i)[\(\[]?(?:e-imzal[ıi](?:d[ıi]r)?|e-imza|elektronik\s+imzal[ıi](?:d[ıi]r)?)[\)\]]?', p_strip))
+
             # Mahkeme / Resmi Kurum başlığı mı?
-            if (any(p_strip.upper().endswith(ek) for ek in MAHKEME_EKLERI)
-                    or p_strip.upper() in ('T.C.', 'T.C')):
+            if is_m:
+                al = 1
+                base_f = {'bold': True, 'size': 14}
+                bef = 14.0
+                aft = 6.0
+            elif is_bolum:
                 al = 1
                 base_f = {'bold': True}
+                bef = 10.0
+                aft = 4.0
             elif '<center>' in p_strip.lower() or (p_strip.startswith('->') and p_strip.endswith('<-')):
                 al = 1
                 base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
+            elif is_sig and al == varsayilan_hiza:
+                # İmzalı ibare içeren imza bloğu varsayılan ikiye yaslama yerine ortalanır
+                al = 1
+                base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
             elif re.search(r'<(?:p|div)\s+align=["\']center["\']', p_strip, re.IGNORECASE):
                 al = 1
                 base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
             elif re.search(r'<(?:p|div)\s+align=["\']right["\']', p_strip, re.IGNORECASE):
                 al = 2
                 base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
             elif re.search(r'<(?:p|div)\s+align=["\']left["\']', p_strip, re.IGNORECASE):
                 al = 0
                 base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
             elif re.search(r'<(?:p|div)\s+align=["\']justify["\']', p_strip, re.IGNORECASE):
                 al = 3
                 base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
             else:
                 base_f = {}
+                bef = 4.0 if pi_idx == 0 else 1.0
+                aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
 
             # Blok etiketlerini metinden temizle
             p_temiz = re.sub(r'</?(?:center|p|div)(?:\s+[^>]*)?>', '', p_strip, flags=re.IGNORECASE).strip()
@@ -1084,13 +1262,10 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
             p = _empty_para()
             runs = parse_inlines(p_temiz, base_f, base_dir, warn, dipnot_sirasi)
 
-            # Tab durağı tespiti (DAVACI\t: Ahmet Yılmaz gibi kalıplar)
+            # Tab durağı tespiti (DAVACI\t: Ahmet Yılmaz gibi kalıplar veya <tab/>)
             tabs = None
-            if '\t' in p_temiz:
+            if '\t' in p_temiz or '<tab' in p_strip.lower():
                 tabs = [(144.0, 'left', None)]
-
-            bef = 4.0 if pi_idx == 0 else 1.0
-            aft = 4.0 if pi_idx == len(alt_paragraflar) - 1 else 1.0
 
             p.update(
                 align=al,
@@ -1136,16 +1311,21 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
         fixed.append(_empty_para())
     blocks = fixed
 
-    # Belge sayfa bilgisi (Standart A4)
+    # Belge sayfa bilgisi (Standart UDF / A4: soldan 2.5cm, diğerleri 1.5cm)
+    secilen_kenar = _parse_margins(kenar_boslugu) or VARSAYILAN_KENAR_BOSLUGU
+    l_m, r_m, t_m, b_m = secilen_kenar
     info = {
         'page_w': 595.3,
         'page_h': 841.9,
-        'margins': [70.85, 70.85, 70.85, 70.85],
+        'margins': secilen_kenar,
         'media': 1,
         'landscape': False,
         'bg': None,
-        'text_w': 453.6,
-        'text_h': 700.2
+        'text_w': round(595.3 - l_m - r_m, 1),
+        'text_h': round(841.9 - t_m - b_m, 1),
+        'header_offset': VARSAYILAN_HEADER_OFFSET,
+        'footer_offset': VARSAYILAN_FOOTER_OFFSET,
+        'footer_spec': VARSAYILAN_FOOTER_SPEC
     }
     hf = {'header': [], 'footer': []}
 
@@ -1156,12 +1336,13 @@ def parse_markdown(md_metin, base_dir='.', varsayilan_hiza=3, h1_ortala=True, wa
 # Çeviri Ana Fonksiyonu
 # --------------------------------------------------------------------------
 
-def cevir(kaynak, cikti, sayfa_no='otomatik', hiza='ikiye-yasla', h1_ortala=True):
+def cevir(kaynak, cikti, sayfa_no='otomatik', hiza='ikiye-yasla', h1_ortala=True, kenar_boslugu=None):
     """Markdown dosyasını veya metnini UDF biçimine çevirir.
 
     sayfa_no: 'otomatik' (varsayılan: altbilgide sayfa no var) | 'var' | 'yok'
     hiza: 'ikiye-yasla' (3) | 'sola' (0)
     h1_ortala: True | False (H1 başlıklarını ortala)
+    kenar_boslugu: [sol, sag, ust, alt] veya "sol,sag,ust,alt" (cm veya punto)
     """
     warn = set()
 
@@ -1181,7 +1362,7 @@ def cevir(kaynak, cikti, sayfa_no='otomatik', hiza='ikiye-yasla', h1_ortala=True
         md_metin = kaynak
 
     v_hiza = 3 if hiza == 'ikiye-yasla' else 0
-    blocks, info, hf, warn = parse_markdown(md_metin, base_dir, v_hiza, h1_ortala, warn)
+    blocks, info, hf, warn = parse_markdown(md_metin, base_dir, v_hiza, h1_ortala, warn, kenar_boslugu=kenar_boslugu)
 
     xml, cdata = build(blocks, info, hf, sayfa_no)
     check(xml, cdata)
@@ -1225,11 +1406,14 @@ def main():
                     help='Paragraf varsayılan hizalaması: ikiye-yasla (varsayılan), sola')
     ap.add_argument('--h1-sol', action='store_true',
                     help='H1 başlıklarını ortalamak yerine sola yasla')
+    ap.add_argument('--kenar-boslugu', default=None,
+                    help='Sayfa kenar boşlukları: cm cinsinden "sol,sag,ust,alt" (varsayılan: "2.5,1.5,1.5,1.5")')
 
     args = ap.parse_args()
     cikti = args.output or (os.path.splitext(args.md)[0] + '.udf')
     try:
-        ozet = cevir(args.md, cikti, sayfa_no=args.sayfa_no, hiza=args.hiza, h1_ortala=not args.h1_sol)
+        ozet = cevir(args.md, cikti, sayfa_no=args.sayfa_no, hiza=args.hiza, h1_ortala=not args.h1_sol,
+                     kenar_boslugu=args.kenar_boslugu)
     except DonusumHatasi as ex:
         sys.exit(f'HATA: {ex}')
 

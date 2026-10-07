@@ -328,9 +328,9 @@ class Cevirici:
         if self.landscape:
             pw, ph = ph, pw
         self.page_w, self.page_h = pw, ph
-        self.margins = tuple(_f(a.get(k), d) for k, d in (('leftMargin', 70.85), ('rightMargin', 70.85),
-                                                          ('topMargin', 70.85), ('bottomMargin', 70.85)))
-        self.hf_off = (_f(a.get('headerFOffset'), 20.0), _f(a.get('footerFOffset'), 35.4))
+        self.margins = tuple(_f(a.get(k), d) for k, d in (('leftMargin', 70.8661413192749), ('rightMargin', 42.51968479156494),
+                                                          ('topMargin', 42.51968479156494), ('bottomMargin', 42.51968479156494)))
+        self.hf_off = (_f(a.get('headerFOffset'), 20.0), _f(a.get('footerFOffset'), 20.0))
         self.text_w = max(72.0, pw / 20.0 - self.margins[0] - self.margins[1])
 
     # ---------- listeler ----------

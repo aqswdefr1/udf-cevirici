@@ -611,7 +611,214 @@ class MdUdfTestleri(unittest.TestCase):
         ok, satirlar = udf_dogrula.dogrula(md_yolu, udf_yolu)
         self.assertTrue(ok, "\n".join(satirlar))
 
+    # ----------------------------------------------------------------------
+    # 17. Rehber UDF Düzeni ve Sayfa Yapısı Testleri (2.5cm sol, 1.5cm diğerleri)
+    # ----------------------------------------------------------------------
+    def test_sayfa_duzeni_ve_rehber_udf_uyumu(self):
+        """UDF sayfa düzeni ve kenar boşlukları referans UDF dilekçesiyle tam uyumlu olmalı."""
+        md = "Bu bir sayfa düzeni sınama metnidir.\n"
+        root, cdata, ozet, md_yolu, udf_yolu = self._cevir_ve_oku(md)
+        pf = root.find("properties/pageFormat")
+        self.assertIsNotNone(pf, "pageFormat etiketi bulunamadı")
+
+        # Soldan 2.5cm (70.866 pt), Diğerleri 1.5cm (42.520 pt)
+        left = float(pf.attrib.get("leftMargin", 0))
+        right = float(pf.attrib.get("rightMargin", 0))
+        top = float(pf.attrib.get("topMargin", 0))
+        bottom = float(pf.attrib.get("bottomMargin", 0))
+
+        self.assertAlmostEqual(left, 70.866, places=2, msg="Sol kenar boşluğu 2.5cm olmalı")
+        self.assertAlmostEqual(right, 42.520, places=2, msg="Sağ kenar boşluğu 1.5cm olmalı")
+        self.assertAlmostEqual(top, 42.520, places=2, msg="Üst kenar boşluğu 1.5cm olmalı")
+        self.assertAlmostEqual(bottom, 42.520, places=2, msg="Alt kenar boşluğu 1.5cm olmalı")
+
+        self.assertEqual(pf.attrib.get("headerFOffset"), "20.0")
+        self.assertEqual(pf.attrib.get("footerFOffset"), "20.0")
+        self.assertEqual(pf.attrib.get("mediaSizeName"), "1")
+        self.assertEqual(pf.attrib.get("paperOrientation"), "1")
+
+    def test_altbilgi_sayfa_numarasi_rehber_uyumu(self):
+        """Altbilgi sayfa numarası rehber dilekçedeki gibi ortalı (BSP32_2088) ve Arial 11pt olmalı."""
+        md = "Sayfa numarası deneme metni.\n"
+        root, cdata, ozet, md_yolu, udf_yolu = self._cevir_ve_oku(md)
+        footer = root.find(".//footer")
+        self.assertIsNotNone(footer, "footer etiketi bulunamadı")
+
+        self.assertEqual(footer.attrib.get("pageNumber-spec"), "BSP32_2088", "Sayfa no ortalı 2088 olmalı")
+        self.assertEqual(footer.attrib.get("pageNumber-fontFace"), "Arial", "Sayfa no fontu Arial olmalı")
+        self.assertEqual(footer.attrib.get("pageNumber-fontSize"), "11", "Sayfa no boyutu 11 olmalı")
+        self.assertEqual(footer.attrib.get("pageNumber-seperator"), "/", "Sayfa no ayırıcı '/' olmalı")
+        self.assertEqual(footer.attrib.get("pageNumber-color"), "-16777216", "Sayfa no rengi siyah olmalı")
+
+    def test_mahkeme_basligi_14pt_ve_ortali(self):
+        """Mahkeme başlıkları hem # ile hem düz yazıldığında, Türkçe küçük/büyük harf ve kesme işaretlerinde 14pt, kalın, ortalı ve doğru boşluklu olmalı."""
+        md = (
+            "AFYONKARAHİSAR 2. AİLE MAHKEMESİNE\n\n"
+            "# İSTANBUL 1. ASLİYE HUKUK MAHKEMESİNE\n\n"
+            "Ankara 1. Aile Mahkemesi'ne\n\n"
+            "Sayın Hâkimliğine\n\n"
+            "Dava metni gövdesi.\n"
+        )
+        root, cdata, ozet, md_yolu, udf_yolu = self._cevir_ve_oku(md)
+        cd16 = cdata.encode('utf-16-le')
+
+        paras = root.findall(".//paragraph")
+        for baslik in ("AFYONKARAHİSAR 2. AİLE MAHKEMESİNE", "İSTANBUL 1. ASLİYE HUKUK MAHKEMESİNE",
+                       "Ankara 1. Aile Mahkemesi'ne", "Sayın Hâkimliğine"):
+            eslesen = []
+            for p in paras:
+                t_list = []
+                for c in p.findall("content"):
+                    so = int(c.attrib.get("startOffset", 0))
+                    ln = int(c.attrib.get("length", 0))
+                    t_list.append(cd16[2 * so:2 * (so + ln)].decode('utf-16-le', 'replace'))
+                if baslik in "".join(t_list):
+                    eslesen.append(p)
+            self.assertTrue(len(eslesen) > 0, f"{baslik} paragrafı bulunamadı")
+            p = eslesen[0]
+            self.assertEqual(p.attrib.get("Alignment"), "1", f"{baslik} ortalanmamış")
+            self.assertEqual(p.attrib.get("SpaceAbove"), "14.0", f"{baslik} SpaceAbove 14.0 olmalı")
+            self.assertEqual(p.attrib.get("SpaceBelow"), "6.0", f"{baslik} SpaceBelow 6.0 olmalı")
+            # İlk content'in özelliklerini kontrol et
+            c0 = p.find("content")
+            self.assertEqual(c0.attrib.get("size"), "14", f"{baslik} boyutu 14pt olmalı")
+            self.assertEqual(c0.attrib.get("bold"), "true", f"{baslik} kalın olmalı")
+
+    def test_eimza_mavi_ve_italik(self):
+        """(e-imzalıdır) ve varyantları mavi (-16776961), kalın ve italik olmalı; düz metindeki e-imza kelimesi boyanmamalı."""
+        md = (
+            "<center>Davacı Vekili<br>Av. Büşra DİŞCİOĞLU ÇETİNÖZ<br>(e-imzalıdır)</center>\n\n"
+            "[E-İmzalıdır]\n\n"
+            "(e-imza ile imzalanmıştır)\n\n"
+            "Davalı taraf e-imza sertifikasına sahiptir.\n"
+        )
+        root, cdata, ozet, md_yolu, udf_yolu = self._cevir_ve_oku(md)
+        cd16 = cdata.encode('utf-16-le')
+
+        for imza_metin in ("(e-imzalıdır)", "[E-İmzalıdır]", "(e-imza ile imzalanmıştır)"):
+            bulunan = None
+            for c in root.findall(".//content"):
+                so = int(c.attrib.get("startOffset", 0))
+                ln = int(c.attrib.get("length", 0))
+                metin = cd16[2 * so:2 * (so + ln)].decode('utf-16-le', 'replace')
+                if imza_metin in metin:
+                    bulunan = c
+                    break
+            self.assertIsNotNone(bulunan, f"{imza_metin} content bulunamadı")
+            self.assertEqual(bulunan.attrib.get("foreground"), "-16776961", f"{imza_metin} mavi olmalı")
+            self.assertEqual(bulunan.attrib.get("italic"), "true", f"{imza_metin} italik olmalı")
+            self.assertEqual(bulunan.attrib.get("bold"), "true", f"{imza_metin} kalın olmalı")
+
+        # Cümle içi normal kullanım boyanmamalı
+        normal_eimza = None
+        for c in root.findall(".//content"):
+            so = int(c.attrib.get("startOffset", 0))
+            ln = int(c.attrib.get("length", 0))
+            metin = cd16[2 * so:2 * (so + ln)].decode('utf-16-le', 'replace')
+            if "Davalı taraf e-imza" in metin:
+                normal_eimza = c
+                break
+        self.assertIsNotNone(normal_eimza, "Normal metin bulunamadı")
+        self.assertIsNone(normal_eimza.attrib.get("foreground"), "Cümle içi e-imza boyanmamalı")
+
+    def test_ozel_kenar_boslugu(self):
+        """Birimli (cm, mm, pt), 2 değerli ve YAML frontmatter kenar boşlukları doğru yansıtılmalı; geçersiz girdide çökmemeli."""
+        # 1. cevir parametresiyle (cm cinsinden 3.0, 2.0, 2.0, 2.0)
+        md = "Özel kenar testi metni.\n"
+        root, cdata, ozet, md_yolu, udf_yolu = self._cevir_ve_oku(md, kenar_boslugu="3.0,2.0,2.0,2.0")
+        pf = root.find("properties/pageFormat")
+        self.assertAlmostEqual(float(pf.attrib.get("leftMargin", 0)), 3.0 * 72 / 2.54, places=1)
+        self.assertAlmostEqual(float(pf.attrib.get("rightMargin", 0)), 2.0 * 72 / 2.54, places=1)
+
+        # 2. YAML frontmatter ile birimli cm yazımı (2.5cm, 1.5cm, 1.5cm, 1.5cm)
+        md_fm_cm = (
+            "---\n"
+            "margins: 2.5cm, 1.5cm, 1.5cm, 1.5cm\n"
+            "---\n\n"
+            "Birimli cm kenar testi.\n"
+        )
+        root_cm, _, _, _, _ = self._cevir_ve_oku(md_fm_cm)
+        pf_cm = root_cm.find("properties/pageFormat")
+        self.assertAlmostEqual(float(pf_cm.attrib.get("leftMargin", 0)), 70.866, places=2)
+        self.assertAlmostEqual(float(pf_cm.attrib.get("rightMargin", 0)), 42.520, places=2)
+
+        # 3. 2 değerli yazım (sol 2.5cm, diğerleri 1.5cm)
+        md_fm_2 = (
+            "---\n"
+            "margins: 2.5, 1.5\n"
+            "---\n\n"
+            "İki değerli kenar testi.\n"
+        )
+        root_2, _, _, _, _ = self._cevir_ve_oku(md_fm_2)
+        pf_2 = root_2.find("properties/pageFormat")
+        self.assertAlmostEqual(float(pf_2.attrib.get("leftMargin", 0)), 70.866, places=2)
+        self.assertAlmostEqual(float(pf_2.attrib.get("rightMargin", 0)), 42.520, places=2)
+        self.assertAlmostEqual(float(pf_2.attrib.get("topMargin", 0)), 42.520, places=2)
+        self.assertAlmostEqual(float(pf_2.attrib.get("bottomMargin", 0)), 42.520, places=2)
+
+        # 4. Geçersiz frontmatter değerinde varsayılana dönmeli ve çökmemeli
+        md_fm_inv = (
+            "---\n"
+            "margins: gecersiz_deger\n"
+            "---\n\n"
+            "Geçersiz kenar testi.\n"
+        )
+        root_inv, _, _, _, _ = self._cevir_ve_oku(md_fm_inv)
+        pf_inv = root_inv.find("properties/pageFormat")
+        self.assertAlmostEqual(float(pf_inv.attrib.get("leftMargin", 0)), 70.866, places=2)
+
+    def test_dilekce_bolum_ve_etiket_yapisi(self):
+        """Rehber UDF'deki AÇIKLAMALAR başlığı, DAVACI etiketi ve 1-) numaralandırması doğru biçimlenmeli."""
+        md = (
+            "AFYONKARAHİSAR 2. AİLE MAHKEMESİNE\n\n"
+            "DAVACI \t\t: Züleyha ZEYBEK\n"
+            "VEKİLİ \t\t: Av. Büşra DİŞCİOĞLU ÇETİNÖZ\n\n"
+            "## AÇIKLAMALAR\n\n"
+            "1-) Mahkemenizce tanzim edilen ara karar usule aykırıdır.\n\n"
+            "SONUÇ VE İSTEM\t: Karardan dönülmesini vekaleten arz ederiz.\n"
+        )
+        root, cdata, ozet, md_yolu, udf_yolu = self._cevir_ve_oku(md)
+        cd16 = cdata.encode('utf-16-le')
+
+        paras = root.findall(".//paragraph")
+
+        # 1. AÇIKLAMALAR başlığı ortalanmış ve kalın olmalı
+        aciklamalar_p = None
+        for p in paras:
+            t_list = [cd16[2*int(c.attrib.get("startOffset",0)):2*(int(c.attrib.get("startOffset",0))+int(c.attrib.get("length",0)))].decode('utf-16-le', 'replace') for c in p.findall("content")]
+            if "AÇIKLAMALAR" in "".join(t_list):
+                aciklamalar_p = p
+                break
+        self.assertIsNotNone(aciklamalar_p, "AÇIKLAMALAR başlığı bulunamadı")
+        self.assertEqual(aciklamalar_p.attrib.get("Alignment"), "1", "AÇIKLAMALAR ortalı olmalı")
+        self.assertEqual(aciklamalar_p.find("content").attrib.get("bold"), "true", "AÇIKLAMALAR kalın olmalı")
+
+        # 2. 1-) paragrafının başındaki 1-) öneki kalın olmalı
+        madde1_c = None
+        for c in root.findall(".//content"):
+            so = int(c.attrib.get("startOffset", 0))
+            ln = int(c.attrib.get("length", 0))
+            metin = cd16[2*so:2*(so+ln)].decode('utf-16-le', 'replace')
+            if metin.strip() == "1-)":
+                madde1_c = c
+                break
+        self.assertIsNotNone(madde1_c, "1-) öneki bulunamadı")
+        self.assertEqual(madde1_c.attrib.get("bold"), "true", "1-) öneki kalın olmalı")
+
+        # 3. DAVACI : etiketi kalın olmalı
+        davaci_c = None
+        for c in root.findall(".//content"):
+            so = int(c.attrib.get("startOffset", 0))
+            ln = int(c.attrib.get("length", 0))
+            metin = cd16[2*so:2*(so+ln)].decode('utf-16-le', 'replace')
+            if "DAVACI" in metin and ":" in metin:
+                davaci_c = c
+                break
+        self.assertIsNotNone(davaci_c, "DAVACI etiketi bulunamadı")
+        self.assertEqual(davaci_c.attrib.get("bold"), "true", "DAVACI etiketi kalın olmalı")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

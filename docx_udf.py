@@ -1525,7 +1525,7 @@ def media_code(page_w, page_h):
 def sect_info(body):
     """Son sectPr: kenar boşlukları (punto), sayfa boyutu, üst/altbilgi referansları."""
     sp = body.find(w('sectPr')) if body is not None else None
-    info = {'margins': (56.7, 56.7, 70.9, 70.9), 'page_w': 595.3, 'page_h': 841.9,
+    info = {'margins': (70.8661413192749, 42.51968479156494, 42.51968479156494, 42.51968479156494), 'page_w': 595.3, 'page_h': 841.9,
             'titlePg': False, 'landscape': False, 'header': {}, 'footer': {}}
     if sp is None:
         return info
@@ -1535,6 +1535,8 @@ def sect_info(body):
         info['margins'] = (g('left'), g('right'), g('top'), g('bottom'))
         if pm.get(w('header')):
             info['hdr_dist'] = g('header')
+        if pm.get(w('footer')):
+            info['ftr_dist'] = g('footer')
     ps = sp.find(w('pgSz'))
     if ps is not None and ps.get(w('w')):
         info['page_w'] = float(ps.get(w('w'))) / 20
@@ -1873,9 +1875,10 @@ def rule_para(color, text_w):
     return d
 
 
-FOOTER_PAGE = (' pageNumber-spec="BSP32_2120" pageNumber-seperator="/" '
+FOOTER_PAGE = (' pageNumber-spec="BSP32_2088" pageNumber-seperator="/" '
                'pageNumber-fontBold="false" pageNumber-fontItalic="false" '
-               'pageNumber-fontFace="Times New Roman" pageNumber-fontSize="10" '
+               'pageNumber-fontFace="Arial" pageNumber-fontSize="11" '
+               'pageNumber-color="-16777216" '
                'pageNumber-foreStr="" pageNumber-pageStartNumStr=""')
 # Büronun Editör'de yaptığı antetli UDF'den: sayfa numarasız altbilgi
 FOOTER_NOPAGE = (' pageNumber-spec="BSP32_0" pageNumber-color="-16777216" '
@@ -1956,8 +1959,9 @@ def build(blocks, info, hf, page_mode='otomatik'):
                    f'startOffset="{foot_off}" length="3" /></paragraph>')
         elif not fx:
             continue                              # ne metin ne sayfa numarası: altbilgi yazma
-        spec = has_page if has_page and has_page is not True else 2120      # altbilgisiz belge: eski davranış
-        els.append(f'<footer{rng}{FOOTER_PAGE.replace("BSP32_2120", f"BSP32_{spec}") if has_page else FOOTER_NOPAGE}>'
+        spec = has_page if has_page and has_page is not True else info.get('footer_spec', 2088)
+        foot_xml = FOOTER_PAGE if str(spec) == "2088" else FOOTER_PAGE.replace("BSP32_2088", f"BSP32_{spec}")
+        els.append(f'<footer{rng}{foot_xml if has_page else FOOTER_NOPAGE}>'
                    + fx + '</footer>')
 
     bg, bm_ = info.get('bg'), [0, 0, 0, 0]         # sol, üst, sağ, alt pay (punto)
@@ -1969,13 +1973,15 @@ def build(blocks, info, hf, page_mode='otomatik'):
     cdata = ''.join(text)
     safe = cdata                                   # ']]>' para_xml'de zaten zararsızlaştırıldı
     orient = '0' if info.get('landscape') else '1'            # java.awt.print.PageFormat: 0 yatay, 1 dikey
+    hdr_off = info.get('header_offset') or (f"{info['hdr_dist']:.1f}" if info.get('hdr_dist') else '20.0')
+    ftr_off = info.get('footer_offset') or (f"{info['ftr_dist']:.1f}" if info.get('ftr_dist') else '20.0')
     xml = (
         '<?xml version="1.0" encoding="UTF-8" ?> \n\n'
         '<template format_id="1.8" >\n'
         f'<content><![CDATA[{safe}]]></content>\n'
         f'<properties><pageFormat mediaSizeName="{info.get("media", 1)}" leftMargin="{l}" rightMargin="{r}" '
-        f'topMargin="{t}" bottomMargin="{bm}" paperOrientation="{orient}" headerFOffset="20.0" '
-        'footerFOffset="35.43307065963745" />'
+        f'topMargin="{t}" bottomMargin="{bm}" paperOrientation="{orient}" headerFOffset="{hdr_off}" '
+        f'footerFOffset="{ftr_off}" />'
         + bg_xml + '</properties>\n'
         '<elements resolver="hvl-default" >\n' + ''.join(els) + '\n</elements>\n'
         '<styles><style name="default" description="Geçerli" family="Dialog" size="12" '
