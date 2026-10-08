@@ -303,6 +303,40 @@ class TestModernUI(unittest.TestCase):
             self.assertEqual(self.root.liste.size(), 0)
             self.assertFalse(bool(self.root.liste_cerceve.winfo_manager()))
 
+    def test_09_kaydirilabilir_govde_ve_fare_tekeri(self):
+        """Pencere kaydırılabilir gövde, scrollbar ve fare tekeri etkileşimlerini doğrula"""
+        self.assertTrue(hasattr(self.root, "canvas"))
+        self.assertTrue(hasattr(self.root, "scrollbar"))
+        self.assertTrue(hasattr(self.root, "ana_tasiyici"))
+        self.assertTrue(hasattr(self.root, "govde_tasiyici"))
+
+        # İçeriğe widget ekleyip scrollregion ve görünürlük fonksiyonunu sına
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+            d = f.name
+        try:
+            self.root.ekle([d])
+            self.root.update_idletasks()
+
+            # Dönüşüm ayarları ve buton görünürlüğü
+            self.assertTrue(bool(self.root.ayar.winfo_manager()))
+            self.assertTrue(bool(self.root.btn_cevir.winfo_manager()))
+
+            # _gorunur_yap çağrısı
+            self.root._gorunur_yap(self.root.btn_cevir)
+            self.root.update_idletasks()
+
+            # Fare tekeri simülasyonu (delta)
+            event_mock = type("MockEvent", (), {
+                "x_root": self.root.winfo_rootx() + 20,
+                "y_root": self.root.winfo_rooty() + 20,
+                "delta": -120
+            })()
+            ret = self.root._fare_tekeri(event_mock)
+            self.assertEqual(ret, "break")
+        finally:
+            if os.path.exists(d):
+                os.remove(d)
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -586,6 +586,7 @@ class ModernListe(ttk.Treeview):
             show="headings",
             selectmode="extended",
             style="Modern.Treeview",
+            height=kwargs.pop("height", 4),
             **kwargs
         )
         self.heading("durum", text="DURUM", anchor="center")
@@ -838,10 +839,10 @@ class Uygulama(TEMEL_PENCERE):
         self.title(UYGULAMA_ADI)
         ekran_boy = self.winfo_screenheight()
         ekran_en = self.winfo_screenwidth()
-        baslangic_en = min(660, max(580, ekran_en - 100))
-        baslangic_boy = min(640, max(540, ekran_boy - 120))
+        baslangic_en = min(680, max(580, ekran_en - 80))
+        baslangic_boy = min(720, max(580, ekran_boy - 80))
         self.geometry(f"{baslangic_en}x{baslangic_boy}")
-        self.minsize(560, 480)
+        self.minsize(560, 420)
         self.font_aile = sistem_fontu()
         self.tema_koyu = sistem_koyu_mu()
         self.renk = PALETLER["koyu" if self.tema_koyu else "acik"]
@@ -893,16 +894,71 @@ class Uygulama(TEMEL_PENCERE):
         self.configure(bg=self.renk["bg_pencere"])
         pencerelere_koyu_baslik_uygula(self, self.tema_koyu)
 
-        # Ana Taşıyıcı
-        self.ana_tasiyici = ttk.Frame(self, padding=(18, 16))
-        self.ana_tasiyici.pack(fill="both", expand=True)
-        dis = self.ana_tasiyici
+        # ==========================================
+        # 1. ÜST BAŞLIK & MARKA BARI (Tepede Sabit)
+        # ==========================================
+        self.ust_bar = ttk.Frame(self, padding=(18, 12, 18, 6))
+        self.ust_bar.pack(side="top", fill="x")
 
         # ==========================================
-        # 1. ÜST BAŞLIK & MARKA BARI
+        # 2. ALT BİLGİ (DİPTE SABİT FOOTER)
         # ==========================================
-        self.ust_bar = ttk.Frame(dis)
-        self.ust_bar.pack(fill="x", pady=(0, 12))
+        self.footer = tk.Frame(self, bg=self.renk["bg_pencere"], padx=18, pady=8)
+        self.footer.pack(side="bottom", fill="x")
+
+        self.lbl_telif = tk.Label(
+            self.footer,
+            text=f"{YAZAR} · s{SURUM}",
+            font=(self.font_aile, 9),
+            bg=self.renk["bg_pencere"],
+            fg=self.renk["soluk"]
+        )
+        self.lbl_telif.pack(side="left")
+
+        self.lbl_guvenlik = tk.Label(
+            self.footer,
+            text="🔒 Çevrimdışı ve Yerel",
+            font=(self.font_aile, 9),
+            bg=self.renk["bg_pencere"],
+            fg=self.renk["soluk"]
+        )
+        self.lbl_guvenlik.pack(side="right")
+
+        # ==========================================
+        # 3. KAYDIRILABİLİR GÖVDE (CANVAS + SCROLLBAR)
+        # ==========================================
+        self.govde_tasiyici = tk.Frame(self, bg=self.renk["bg_pencere"])
+        self.govde_tasiyici.pack(side="top", fill="both", expand=True)
+
+        self.canvas = tk.Canvas(
+            self.govde_tasiyici,
+            bg=self.renk["bg_pencere"],
+            highlightthickness=0,
+            bd=0
+        )
+        self.scrollbar = ttk.Scrollbar(
+            self.govde_tasiyici,
+            orient="vertical",
+            command=self.canvas.yview,
+            style="Vertical.TScrollbar"
+        )
+        self.canvas.configure(yscrollcommand=self._kaydirma_guncelle)
+
+        self.ana_tasiyici = tk.Frame(self.canvas, bg=self.renk["bg_pencere"], padx=18, pady=6)
+        self._canvas_pencere_id = self.canvas.create_window((0, 0), window=self.ana_tasiyici, anchor="nw")
+
+        self.scrollbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.canvas.bind("<Configure>", self._canvas_yapilandir)
+        self.ana_tasiyici.bind("<Configure>", self._icerik_yapilandir)
+
+        # Fare tekerleğiyle kaydırma desteği
+        self.bind_all("<MouseWheel>", self._fare_tekeri, add="+")
+        self.bind_all("<Button-4>", lambda e: self.canvas.yview_scroll(-1, "units"), add="+")
+        self.bind_all("<Button-5>", lambda e: self.canvas.yview_scroll(1, "units"), add="+")
+
+        dis = self.ana_tasiyici
 
         # Sol: Logo mark + Başlık + Versiyon rozeti + Alt başlık
         self.marka_sol = ttk.Frame(self.ust_bar)
@@ -970,7 +1026,7 @@ class Uygulama(TEMEL_PENCERE):
         surukleme = False
         if SURUKLENEBILIR:
             try:
-                for w in (self, self.birak, self.birak_ic):
+                for w in (self, self.canvas, self.ana_tasiyici, self.birak, self.birak_ic):
                     try:
                         w.drop_target_register(DND_FILES)
                         w.dnd_bind("<<Drop>>", self._birakildi)
@@ -1222,29 +1278,6 @@ class Uygulama(TEMEL_PENCERE):
         self.btn_onizle = ttk.Button(self.sonuc_cerceve, text="👁️ Editör Önizlemesi", style="Secondary.TButton",
                                      command=self.onizle_baslat)
 
-        # ==========================================
-        # 7. ALT BİLGİ & GÜVENLİK ROZETİ (FOOTER)
-        # ==========================================
-        self.footer = tk.Frame(dis, bg=self.renk["bg_pencere"])
-        self.footer.pack(side="bottom", fill="x", pady=(8, 0))
-
-        self.lbl_telif = tk.Label(
-            self.footer,
-            text=f"{YAZAR} · s{SURUM}",
-            font=(self.font_aile, 9),
-            bg=self.renk["bg_pencere"],
-            fg=self.renk["soluk"]
-        )
-        self.lbl_telif.pack(side="left")
-
-        self.lbl_guvenlik = tk.Label(
-            self.footer,
-            text="🔒 Çevrimdışı ve Yerel",
-            font=(self.font_aile, 9),
-            bg=self.renk["bg_pencere"],
-            fg=self.renk["soluk"]
-        )
-        self.lbl_guvenlik.pack(side="right")
 
         # Klavye kısayolları
         self.bind("<Control-Return>", lambda e: self.cevir_baslat())
@@ -1320,6 +1353,84 @@ class Uygulama(TEMEL_PENCERE):
                 w = self.durum_kutu.winfo_width()
                 if w > 100:
                     self.durum_detay.configure(wraplength=max(320, w - 40))
+        except Exception:
+            pass
+
+    def _canvas_yapilandir(self, event):
+        if hasattr(self, "canvas") and hasattr(self, "_canvas_pencere_id"):
+            self.canvas.itemconfig(self._canvas_pencere_id, width=event.width)
+
+    def _icerik_yapilandir(self, event=None):
+        if hasattr(self, "canvas"):
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _kaydirma_guncelle(self, first, last):
+        if hasattr(self, "scrollbar"):
+            self.scrollbar.set(first, last)
+            try:
+                f, l = float(first), float(last)
+                if f <= 0.0 and l >= 1.0:
+                    if bool(self.scrollbar.winfo_manager()):
+                        self.scrollbar.pack_forget()
+                else:
+                    if not bool(self.scrollbar.winfo_manager()):
+                        self.scrollbar.pack(side="right", fill="y", before=self.canvas)
+            except Exception:
+                pass
+
+    def _fare_tekeri(self, event):
+        try:
+            if not hasattr(self, "canvas"):
+                return
+            x, y = event.x_root, event.y_root
+            w = self.winfo_containing(x, y)
+            liste_uzerinde = False
+            cur = w
+            while cur:
+                if hasattr(self, "liste") and cur == self.liste:
+                    liste_uzerinde = True
+                    break
+                cur = getattr(cur, "master", None)
+
+            if not liste_uzerinde or (hasattr(self, "liste") and self.liste.size() <= 4):
+                if sys.platform == "darwin":
+                    delta = -1 * int(event.delta)
+                else:
+                    delta = int(-1 * (event.delta / 120))
+                self.canvas.yview_scroll(delta, "units")
+                return "break"
+        except Exception:
+            pass
+
+    def _gorunur_yap(self, widget):
+        """İlgili widget'ın görünür olmasını sağlamak için canvas'ı gerektiğinde kaydırır."""
+        try:
+            if not hasattr(self, "canvas") or not bool(widget.winfo_manager()):
+                return
+            self.update_idletasks()
+            bbox = self.canvas.bbox("all")
+            if not bbox:
+                return
+            top_y, bot_y = bbox[1], bbox[3]
+            total_h = bot_y - top_y
+            c_h = self.canvas.winfo_height()
+            if total_h <= c_h or c_h <= 0:
+                return
+
+            w_y = widget.winfo_y()
+            w_h = widget.winfo_height()
+            w_bottom = w_y + w_h
+
+            current_top_ratio, current_bot_ratio = self.canvas.yview()
+            visible_top = current_top_ratio * total_h
+            visible_bot = current_bot_ratio * total_h
+
+            if w_bottom > visible_bot:
+                target = (w_bottom - c_h + 16) / total_h
+                self.canvas.yview_moveto(min(1.0, max(0.0, target)))
+            elif w_y < visible_top:
+                target = max(0.0, (w_y - 16) / total_h)
+                self.canvas.yview_moveto(target)
         except Exception:
             pass
 
@@ -1406,6 +1517,14 @@ class Uygulama(TEMEL_PENCERE):
         ttk_stilleri_ayarla(self.style, self.renk, self.font_aile)
 
         self.btn_tema.configure(text="☀️ Açık" if self.tema_koyu else "🌙 Koyu")
+        if hasattr(self, "govde_tasiyici"):
+            self.govde_tasiyici.configure(bg=self.renk["bg_pencere"])
+        if hasattr(self, "canvas"):
+            self.canvas.configure(bg=self.renk["bg_pencere"])
+        if hasattr(self, "ana_tasiyici"):
+            self.ana_tasiyici.configure(bg=self.renk["bg_pencere"])
+        if hasattr(self, "ust_bar"):
+            self.ust_bar.configure(style="TFrame")
         self.lbl_baslik.configure(bg=self.renk["bg_pencere"], fg=self.renk["yazi"])
         self.lbl_surum_rozet.configure(bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"])
         self.lbl_alt_baslik.configure(bg=self.renk["bg_pencere"], fg=self.renk["soluk"])
@@ -1564,7 +1683,7 @@ class Uygulama(TEMEL_PENCERE):
 
         if self.yollar:
             self._ayarla_dropzone_modu(kompakt=True)
-            self.liste_cerceve.pack(fill="both", expand=True, after=self.birak, pady=(0, 10))
+            self.liste_cerceve.pack(fill="x", expand=False, after=self.birak, pady=(0, 10))
             self.ayar.pack(fill="x", after=self.liste_cerceve, pady=(0, 10))
             self.btn_cevir.pack(fill="x", pady=(0, 10), after=self.ayar)
             self.sayi_yazi.configure(text=f"{len(self.yollar)} belge")
@@ -1574,6 +1693,7 @@ class Uygulama(TEMEL_PENCERE):
                 self.ayar_word.pack(fill="x", before=self.ayar_kayit, pady=(0, 6))
             else:
                 self.ayar_word.pack_forget()
+            self._gorunur_yap(self.btn_cevir)
         else:
             self._ayarla_dropzone_modu(kompakt=False)
             for w in (self.liste_cerceve, self.ayar, self.btn_cevir):
@@ -1610,6 +1730,7 @@ class Uygulama(TEMEL_PENCERE):
         hedef_onceki = self.btn_cevir if bool(self.btn_cevir.winfo_manager()) else self.birak
         self.durum_kutu.pack(fill="x", pady=(10, 0), after=hedef_onceki)
         self._ayarla_durum_wraplength()
+        self._gorunur_yap(self.durum_kutu)
 
     # ---------------------------------------------------------------- çevirme
     def cevir_baslat(self):
@@ -1689,6 +1810,7 @@ class Uygulama(TEMEL_PENCERE):
         if self.winfo_reqheight() > self.winfo_screenheight() - 90:
             self._sonuc_yaz(iyi, kotu, 2)
             self._sigdir()
+        self._gorunur_yap(self.sonuc_cerceve if bool(self.sonuc_cerceve.winfo_manager()) else self.durum_kutu)
 
     def _sonuc_yaz(self, iyi, kotu, en_cok):
         """Sonuç kutusunun metni; uyarılar sade dille, en çok en_cok madde."""
