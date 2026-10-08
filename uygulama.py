@@ -88,20 +88,201 @@ def son_surumu_sor():
         return json.load(yanit).get("tag_name") or ""
 
 
-ACIK_TEMA = {"yesil": "#127a3d", "kirmizi": "#b4232a", "soluk": "#6b7280", "sari": "#8a6100",
-             "cizgi": "#d7d9dd", "kagit": "#ffffff", "yazi": "#1c1f24", "secim": "#d3e3f5"}
-KOYU_TEMA = {"yesil": "#5fd08a", "kirmizi": "#f08d92", "soluk": "#9aa3ae", "sari": "#e3b341",
-             "cizgi": "#3a4048", "kagit": "#242a31", "yazi": "#e8eaed", "secim": "#33415a"}
-
-
-def tema_sec(pencere):
-    """Arka planın parlaklığına göre okunur renk kümesi."""
+# Yüksek Çözünürlüklü Ekran (HiDPI / Retina) Desteği
+if sys.platform == "win32":
     try:
-        r, g, b = pencere.winfo_rgb(ttk.Style().lookup("TFrame", "background")
-                                    or pencere.cget("background"))
-        return KOYU_TEMA if (r + g + b) / 3 < 32768 else ACIK_TEMA
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
-        return ACIK_TEMA
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+IKON_DIZINI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ikon")
+ICO_YOLU = os.path.join(IKON_DIZINI, "uygulama.ico")
+PNG_YOLU = os.path.join(IKON_DIZINI, "ikon-1024.png")
+
+
+def sistem_fontu():
+    if sys.platform == "win32":
+        return "Segoe UI"
+    elif sys.platform == "darwin":
+        return ".AppleSystemUIFont"
+    return "DejaVu Sans"
+
+
+def sistem_mono_fontu():
+    if sys.platform == "darwin":
+        return "Menlo"
+    return "Consolas"
+
+
+def sistem_koyu_mu():
+    """İşletim sisteminin koyu temada olup olmadığını anlar."""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            anahtar = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+            )
+            deger, _ = winreg.QueryValueEx(anahtar, "AppsUseLightTheme")
+            return deger == 0
+        except Exception:
+            pass
+    elif sys.platform == "darwin":
+        try:
+            cikti = subprocess.check_output(
+                ["defaults", "read", "-g", "AppleInterfaceStyle"],
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+            return "Dark" in cikti
+        except Exception:
+            pass
+    return False
+
+
+def pencerelere_koyu_baslik_uygula(pencere, koyu_mu):
+    """Windows 10/11'de pencere başlık çubuğunun rengini temaya göre ayarlar."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            pencere.update_idletasks()
+            hwnd = ctypes.windll.user32.GetAncestor(pencere.winfo_id(), 2)
+            if hwnd:
+                deger = ctypes.c_int(1 if koyu_mu else 0)
+                # Windows 11 ve Windows 10 2004+ için DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                res = ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd, 20, ctypes.byref(deger), ctypes.sizeof(deger)
+                )
+                if res != 0:
+                    # Windows 10 1903/1909 için DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19
+                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd, 19, ctypes.byref(deger), ctypes.sizeof(deger)
+                    )
+        except Exception:
+            pass
+
+
+def pencereyi_ortala(pencere, ana=None, w=None, h=None):
+    """Pencereyi ana pencerenin veya ekranın ortasına konumlandırır."""
+    pencere.update_idletasks()
+    pw = w or pencere.winfo_reqwidth()
+    ph = h or pencere.winfo_reqheight()
+    if ana and ana.winfo_ismapped():
+        ax = ana.winfo_rootx()
+        ay = ana.winfo_rooty()
+        aw = ana.winfo_width()
+        ah = ana.winfo_height()
+        x = ax + max(0, (aw - pw) // 2)
+        y = ay + max(0, (ah - ph) // 2)
+    else:
+        sw = pencere.winfo_screenwidth()
+        sh = pencere.winfo_screenheight()
+        x = max(0, (sw - pw) // 2)
+        y = max(0, (sh - ph) // 2)
+    pencere.geometry(f"{pw}x{ph}+{x}+{y}")
+
+
+PALETLER = {
+    "acik": {
+        "ad": "Açık",
+        "bg_pencere": "#f8fafc",      # Slate 50
+        "bg_kart": "#ffffff",         # Beyaz
+        "bg_kart_alt": "#f1f5f9",     # Slate 100
+        "cizgi": "#e2e8f0",           # Slate 200
+        "cizgi_odak": "#3b82f6",      # Mavi 500
+        "yazi": "#0f172a",            # Slate 900
+        "yazi_ikincil": "#475569",    # Slate 600
+        "soluk": "#64748b",           # Slate 500
+        "soluk_acik": "#94a3b8",      # Slate 400
+        "birincil": "#2563eb",        # Mavi 600
+        "birincil_hover": "#1d4ed8",  # Mavi 700
+        "birincil_yazi": "#ffffff",
+        "ikincil_bg": "#f1f5f9",      # Buton bg
+        "ikincil_cizgi": "#cbd5e1",
+        "ikincil_hover": "#e2e8f0",
+        "ikincil_yazi": "#1e293b",
+        "secim": "#dbeafe",           # Mavi 100
+        "secim_yazi": "#1e3a8a",
+        "drop_bg": "#ffffff",
+        "drop_hover": "#eff6ff",      # Mavi 50
+        "drop_cizgi": "#cbd5e1",
+        "drop_cizgi_hover": "#3b82f6",
+        # Durum renkleri
+        "yesil": "#16a34a",
+        "yesil_bg": "#f0fdf4",
+        "yesil_cizgi": "#86efac",
+        "yesil_yazi": "#14532d",
+        "sari": "#d97706",
+        "sari_bg": "#fffbeb",
+        "sari_cizgi": "#fde68a",
+        "sari_yazi": "#78350f",
+        "kirmizi": "#dc2626",
+        "kirmizi_bg": "#fef2f2",
+        "kirmizi_cizgi": "#fca5a5",
+        "kirmizi_yazi": "#7f1d1d",
+        # Geriye uyumluluk
+        "kagit": "#ffffff",
+    },
+    "koyu": {
+        "ad": "Koyu",
+        "bg_pencere": "#0f172a",      # Slate 900
+        "bg_kart": "#1e293b",         # Slate 800
+        "bg_kart_alt": "#172033",
+        "cizgi": "#334155",           # Slate 700
+        "cizgi_odak": "#60a5fa",      # Mavi 400
+        "yazi": "#f8fafc",            # Slate 50
+        "yazi_ikincil": "#cbd5e1",    # Slate 300
+        "soluk": "#94a3b8",           # Slate 400
+        "soluk_acik": "#64748b",      # Slate 500
+        "birincil": "#3b82f6",        # Mavi 500
+        "birincil_hover": "#2563eb",  # Mavi 600
+        "birincil_yazi": "#ffffff",
+        "ikincil_bg": "#283548",
+        "ikincil_cizgi": "#475569",
+        "ikincil_hover": "#334155",
+        "ikincil_yazi": "#f1f5f9",
+        "secim": "#1e3a8a",           # Mavi 900
+        "secim_yazi": "#dbeafe",
+        "drop_bg": "#1e293b",
+        "drop_hover": "#172554",      # Mavi 950
+        "drop_cizgi": "#475569",
+        "drop_cizgi_hover": "#60a5fa",
+        # Durum renkleri
+        "yesil": "#22c55e",
+        "yesil_bg": "#052e16",
+        "yesil_cizgi": "#15803d",
+        "yesil_yazi": "#bbf7d0",
+        "sari": "#f59e0b",
+        "sari_bg": "#451a03",
+        "sari_cizgi": "#b45309",
+        "sari_yazi": "#fde68a",
+        "kirmizi": "#ef4444",
+        "kirmizi_bg": "#450a0a",
+        "kirmizi_cizgi": "#b91c1c",
+        "kirmizi_yazi": "#fecaca",
+        # Geriye uyumluluk
+        "kagit": "#1e293b",
+    }
+}
+ACIK_TEMA = PALETLER["acik"]
+KOYU_TEMA = PALETLER["koyu"]
+
+
+def tema_sec(pencere=None):
+    """Arka planın parlaklığına göre okunur renk kümesi."""
+    if sistem_koyu_mu():
+        return KOYU_TEMA
+    if pencere:
+        try:
+            r, g, b = pencere.winfo_rgb(ttk.Style().lookup("TFrame", "background")
+                                        or pencere.cget("background"))
+            return KOYU_TEMA if (r + g + b) / 3 < 32768 else ACIK_TEMA
+        except Exception:
+            pass
+    return ACIK_TEMA
 
 
 # --------------------------------------------------------------------------
@@ -309,49 +490,391 @@ def dosya_ac(yol):
 
 
 # --------------------------------------------------------------------------
+# Stil ve Görsel Arayüz Yapılandırması
+# --------------------------------------------------------------------------
+def ttk_stilleri_ayarla(style, renk, font_aile):
+    style.theme_use("clam")
+
+    # Genel temel yapılandırma
+    style.configure(".", background=renk["bg_pencere"], foreground=renk["yazi"], font=(font_aile, 10))
+    style.configure("TFrame", background=renk["bg_pencere"])
+    style.configure("Card.TFrame", background=renk["bg_kart"], relief="flat")
+    style.configure("CardAlt.TFrame", background=renk["bg_kart_alt"], relief="flat")
+
+    style.configure("TLabel", background=renk["bg_pencere"], foreground=renk["yazi"], font=(font_aile, 10))
+    style.configure("Card.TLabel", background=renk["bg_kart"], foreground=renk["yazi"], font=(font_aile, 10))
+    style.configure("CardMuted.TLabel", background=renk["bg_kart"], foreground=renk["soluk"], font=(font_aile, 10))
+    style.configure("CardBold.TLabel", background=renk["bg_kart"], foreground=renk["yazi"], font=(font_aile, 11, "bold"))
+
+    # Birincil Aksiyon Butonu (Dönüştür / Çevir)
+    style.configure("Primary.TButton", background=renk["birincil"], foreground=renk["birincil_yazi"],
+                    font=(font_aile, 11, "bold"), borderwidth=0, relief="flat", padding=(18, 9))
+    style.map("Primary.TButton",
+              background=[("pressed", renk["birincil_hover"]),
+                          ("active", renk["birincil_hover"]),
+                          ("disabled", renk["cizgi"])],
+              foreground=[("disabled", renk["soluk_acik"])])
+
+    # İkincil Butonlar (Aksiyonlar)
+    style.configure("Secondary.TButton", background=renk["ikincil_bg"], foreground=renk["ikincil_yazi"],
+                    font=(font_aile, 9, "bold"), borderwidth=1, bordercolor=renk["ikincil_cizgi"],
+                    relief="flat", padding=(10, 6))
+    style.map("Secondary.TButton",
+              background=[("pressed", renk["ikincil_cizgi"]),
+                          ("active", renk["ikincil_hover"]),
+                          ("disabled", renk["ikincil_bg"])],
+              foreground=[("disabled", renk["soluk"])])
+
+    # Hayalet Butonlar (Header / Küçük kontroller)
+    style.configure("Ghost.TButton", background=renk["bg_pencere"], foreground=renk["yazi_ikincil"],
+                    font=(font_aile, 9), borderwidth=1, bordercolor=renk["cizgi"],
+                    relief="flat", padding=(8, 4))
+    style.map("Ghost.TButton",
+              background=[("active", renk["bg_kart"]), ("pressed", renk["cizgi"])],
+              foreground=[("active", renk["yazi"])])
+
+    # Açılır Liste (Combobox)
+    style.configure("TCombobox", fieldbackground=renk["bg_kart"], background=renk["ikincil_bg"],
+                    foreground=renk["yazi"], arrowcolor=renk["yazi"],
+                    bordercolor=renk["cizgi"], lightcolor=renk["cizgi"], darkcolor=renk["cizgi"],
+                    padding=(6, 4))
+    style.map("TCombobox",
+              fieldbackground=[("readonly", renk["bg_kart"])],
+              selectbackground=[("readonly", renk["secim"])],
+              selectforeground=[("readonly", renk["secim_yazi"])])
+
+    # İlerleme Çubuğu (Progressbar)
+    style.configure("Horizontal.TProgressbar", troughcolor=renk["cizgi"], background=renk["birincil"],
+                    bordercolor=renk["cizgi"], lightcolor=renk["birincil"], darkcolor=renk["birincil"])
+
+    # Ağaç / Liste Görünümü (Treeview)
+    style.configure("Modern.Treeview", background=renk["bg_kart"], fieldbackground=renk["bg_kart"],
+                    foreground=renk["yazi"], borderwidth=0, relief="flat",
+                    lightcolor=renk["bg_kart"], darkcolor=renk["bg_kart"], bordercolor=renk["bg_kart"],
+                    font=(font_aile, 10), rowheight=32)
+    style.configure("Modern.Treeview.Heading", background=renk["bg_kart_alt"], foreground=renk["soluk"],
+                    font=(font_aile, 9, "bold"), borderwidth=0, relief="flat",
+                    lightcolor=renk["bg_kart_alt"], darkcolor=renk["bg_kart_alt"], bordercolor=renk["cizgi"],
+                    padding=(6, 6))
+    style.map("Modern.Treeview",
+              background=[("selected", renk["secim"])],
+              foreground=[("selected", renk["secim_yazi"])])
+    style.map("Modern.Treeview.Heading",
+              background=[("active", renk["bg_kart_alt"])],
+              relief=[("active", "flat")])
+
+    # Kaydırma Çubuğu (Scrollbar)
+    style.configure("Vertical.TScrollbar", troughcolor=renk["bg_kart"], background=renk["cizgi"],
+                    bordercolor=renk["bg_kart"], arrowcolor=renk["soluk"], relief="flat")
+    style.map("Vertical.TScrollbar", background=[("active", renk["soluk"])])
+
+    # Durum Bildirim Stilleri
+    for tur in ("yesil", "sari", "kirmizi"):
+        bg = renk[f"{tur}_bg"]
+        yazi = renk[f"{tur}_yazi"]
+        style.configure(f"Durum_{tur}.TFrame", background=bg)
+        style.configure(f"DurumBaslik_{tur}.TLabel", background=bg, foreground=yazi, font=(font_aile, 11, "bold"))
+        style.configure(f"DurumDetay_{tur}.TLabel", background=bg, foreground=yazi, font=(font_aile, 10))
+
+
+class ModernListe(ttk.Treeview):
+    """Modern ve şık çok sütunlu belge listesi (tk.Listbox ile tam uyumlu)."""
+    def __init__(self, parent, font_aile, **kwargs):
+        super().__init__(
+            parent,
+            columns=("durum", "dosya", "yon"),
+            show="headings",
+            selectmode="extended",
+            style="Modern.Treeview",
+            **kwargs
+        )
+        self.heading("durum", text="DURUM", anchor="center")
+        self.heading("dosya", text="BELGE ADI", anchor="w")
+        self.heading("yon", text="DÖNÜŞÜM", anchor="center")
+        self.column("durum", width=110, minwidth=95, stretch=False, anchor="center")
+        self.column("dosya", width=340, minwidth=220, stretch=True, anchor="w")
+        self.column("yon", width=120, minwidth=100, stretch=False, anchor="center")
+        self._items = []
+
+    def curselection(self):
+        sel = set(self.selection())
+        return tuple(sorted(i for i, item_id in enumerate(self._items) if item_id in sel))
+
+    def delete(self, first, last=None):
+        """tk.Listbox.delete ile birebir uyumlu: tek indeks veya aralık silme."""
+        n = len(self._items)
+        if n == 0:
+            return
+
+        def _parse_idx(idx):
+            if idx is None:
+                return None
+            s = str(idx).lower()
+            if s in ("end", str(tk.END).lower()):
+                return n - 1
+            try:
+                return int(idx)
+            except (ValueError, TypeError):
+                return 0
+
+        first_idx = _parse_idx(first)
+        last_idx = _parse_idx(last)
+
+        if last is None:
+            if first_idx is not None and 0 <= first_idx < len(self._items):
+                item_id = self._items.pop(first_idx)
+                super().delete(item_id)
+        else:
+            if first_idx is None:
+                first_idx = 0
+            if last_idx is None:
+                last_idx = n - 1
+            if first_idx <= 0 and last_idx >= n - 1:
+                for item in self.get_children():
+                    super().delete(item)
+                self._items.clear()
+            else:
+                start = max(0, min(first_idx, n - 1))
+                end = max(0, min(last_idx, n - 1))
+                if start <= end:
+                    to_delete = self._items[start:end + 1]
+                    del self._items[start:end + 1]
+                    for item_id in to_delete:
+                        super().delete(item_id)
+
+    def ekle_oge(self, durum_metni, dosya_adi, yon_metni, tag=None):
+        iid = super().insert("", "end", values=(durum_metni, dosya_adi, yon_metni), tags=(tag,) if tag else ())
+        self._items.append(iid)
+        return iid
+
+    def guncelle_oge(self, index, durum_metni=None, tag=None):
+        try:
+            idx = int(index)
+        except (ValueError, TypeError):
+            if isinstance(index, str) and index in self._items:
+                iid = index
+            else:
+                return
+        else:
+            if 0 <= idx < len(self._items):
+                iid = self._items[idx]
+            else:
+                return
+
+        cur_vals = list(self.item(iid, "values"))
+        if durum_metni is not None:
+            cur_vals[0] = durum_metni
+        kwargs = {"values": cur_vals}
+        if tag is not None:
+            kwargs["tags"] = (tag,)
+        self.item(iid, **kwargs)
+
+    def insert(self, index, text):
+        iid = super().insert("", "end", values=("", text, ""))
+        self._items.append(iid)
+        return iid
+
+    def itemconfigure(self, index, **kwargs):
+        pass
+
+    def size(self):
+        return len(self._items)
+
+    def get(self, first, last=None):
+        n = len(self._items)
+        if n == 0:
+            return "" if last is None else ()
+
+        def _val_at(idx):
+            if 0 <= idx < n:
+                vals = self.item(self._items[idx], "values")
+                if len(vals) > 1 and vals[1]:
+                    return vals[1]
+                return " ".join(str(v) for v in vals if v).strip()
+            return ""
+
+        if last is None:
+            if str(first).lower() in ("end", str(tk.END).lower()):
+                return _val_at(n - 1)
+            try:
+                return _val_at(int(first))
+            except (ValueError, TypeError):
+                return ""
+        else:
+            try:
+                start = n - 1 if str(first).lower() in ("end", str(tk.END).lower()) else int(first)
+                end = n - 1 if str(last).lower() in ("end", str(tk.END).lower()) else int(last)
+                return tuple(_val_at(i) for i in range(max(0, start), min(n, end + 1)))
+            except Exception:
+                return ()
+
+    def selection_set(self, first, last=None):
+        if not self._items:
+            return
+        n = len(self._items)
+
+        def _parse(idx):
+            if str(idx).lower() in ("end", str(tk.END).lower()):
+                return n - 1
+            try:
+                return int(idx)
+            except (ValueError, TypeError):
+                return 0
+
+        first_idx = _parse(first)
+        if last is None:
+            if 0 <= first_idx < n:
+                super().selection_add(self._items[first_idx])
+        else:
+            last_idx = _parse(last)
+            start = max(0, min(first_idx, n - 1))
+            end = max(0, min(last_idx, n - 1))
+            if start <= end:
+                to_add = [self._items[i] for i in range(start, end + 1)]
+                super().selection_add(to_add)
+
+    def selection_clear(self, first=None, last=None):
+        if not self._items:
+            return
+        if first is None:
+            super().selection_set([])
+            return
+        n = len(self._items)
+
+        def _parse(idx):
+            if str(idx).lower() in ("end", str(tk.END).lower()):
+                return n - 1
+            try:
+                return int(idx)
+            except (ValueError, TypeError):
+                return 0
+
+        first_idx = _parse(first)
+        if last is None:
+            if 0 <= first_idx < n:
+                super().selection_remove(self._items[first_idx])
+        else:
+            last_idx = _parse(last)
+            start = max(0, min(first_idx, n - 1))
+            end = max(0, min(last_idx, n - 1))
+            if start <= end:
+                to_remove = [self._items[i] for i in range(start, end + 1)]
+                super().selection_remove(to_remove)
+
+    def see(self, index):
+        if str(index).lower() in ("end", str(tk.END).lower()):
+            index = len(self._items) - 1
+        elif isinstance(index, str) and index.isdigit():
+            index = int(index)
+        if isinstance(index, int):
+            if 0 <= index < len(self._items):
+                super().see(self._items[index])
+            return
+        try:
+            super().see(index)
+        except Exception:
+            pass
+
+
+# --------------------------------------------------------------------------
 # Pencereler
 # --------------------------------------------------------------------------
 class RaporPenceresi(tk.Toplevel):
     def __init__(self, ana, baslik, metin, renk, genislik=86, yukseklik=26):
         super().__init__(ana)
-        self.title(baslik)
+        self.title(f"{baslik} — {UYGULAMA_ADI}")
         self.transient(ana)
-        cerceve = ttk.Frame(self, padding=12)
-        cerceve.pack(fill="both", expand=True)
-        kutu = tk.Text(cerceve, width=genislik, height=yukseklik, wrap="word",
-                       font=("Menlo" if sys.platform == "darwin" else "Consolas", 11),
-                       background=renk["kagit"], foreground=renk["yazi"],
-                       relief="solid", borderwidth=1, padx=8, pady=8)
-        kaydir = ttk.Scrollbar(cerceve, command=kutu.yview)
+        self.bind("<Escape>", lambda e: self.destroy())
+        font_aile = getattr(ana, "font_aile", sistem_fontu())
+        mono_font = sistem_mono_fontu()
+        self.configure(bg=renk["bg_pencere"])
+        pencerelere_koyu_baslik_uygula(self, getattr(ana, "tema_koyu", False))
+
+        dis = ttk.Frame(self, padding=16)
+        dis.pack(fill="both", expand=True)
+
+        ust = ttk.Frame(dis)
+        ust.pack(fill="x", pady=(0, 10))
+        tk.Label(ust, text="📋 Çeviri ve Doğrulama Raporu",
+                 font=(font_aile, 13, "bold"),
+                 bg=renk["bg_pencere"], fg=renk["yazi"]).pack(anchor="w")
+        tk.Label(ust, text="Dönüştürülen belgelerin yapısal doğrulaması ve teknik detayları.",
+                 font=(font_aile, 10),
+                 bg=renk["bg_pencere"], fg=renk["soluk"]).pack(anchor="w", pady=(2, 0))
+
+        kart = tk.Frame(dis, bg=renk["bg_kart"], highlightthickness=1, highlightbackground=renk["cizgi"])
+        kart.pack(fill="both", expand=True)
+
+        kutu = tk.Text(kart, width=genislik, height=yukseklik, wrap="word",
+                       font=(mono_font, 10),
+                       background=renk["bg_kart"], foreground=renk["yazi"],
+                       selectbackground=renk["secim"], selectforeground=renk["secim_yazi"],
+                       relief="flat", borderwidth=0, padx=12, pady=10)
+        kaydir = ttk.Scrollbar(kart, command=kutu.yview, style="Vertical.TScrollbar")
         kutu.configure(yscrollcommand=kaydir.set)
         kaydir.pack(side="right", fill="y")
         kutu.pack(side="left", fill="both", expand=True)
         kutu.insert("1.0", metin)
         kutu.configure(state="disabled")
-        alt = ttk.Frame(self, padding=(12, 0, 12, 12))
-        alt.pack(fill="x")
-        self.btn = ttk.Button(alt, text="Panoya kopyala", command=lambda: self.kopyala(metin))
+
+        alt = ttk.Frame(dis)
+        alt.pack(fill="x", pady=(12, 0))
+        self.btn = ttk.Button(alt, text="📋 Panoya kopyala", style="Secondary.TButton",
+                              command=lambda: self.kopyala(metin))
         self.btn.pack(side="left")
-        ttk.Button(alt, text="Kapat", command=self.destroy).pack(side="right")
+        ttk.Button(alt, text="Kapat", style="Secondary.TButton", command=self.destroy).pack(side="right")
+        pencereyi_ortala(self, ana)
 
     def kopyala(self, metin):
         self.clipboard_clear()
         self.clipboard_append(metin)
-        self.btn.configure(text="Kopyalandı ✓")
-        self.after(1500, lambda: self.btn.configure(text="Panoya kopyala"))
+        self.btn.configure(text="✓ Kopyalandı")
+        self.after(1500, lambda: self.btn.configure(text="📋 Panoya kopyala"))
 
 
 class Uygulama(TEMEL_PENCERE):
     def __init__(self):
         super().__init__()
         self.title(UYGULAMA_ADI)
-        self.geometry("620x720")
-        self.minsize(600, 620)
+        ekran_boy = self.winfo_screenheight()
+        ekran_en = self.winfo_screenwidth()
+        baslangic_en = min(660, max(580, ekran_en - 100))
+        baslangic_boy = min(640, max(540, ekran_boy - 120))
+        self.geometry(f"{baslangic_en}x{baslangic_boy}")
+        self.minsize(560, 480)
+        self.font_aile = sistem_fontu()
+        self.tema_koyu = sistem_koyu_mu()
+        self.renk = PALETLER["koyu" if self.tema_koyu else "acik"]
+
+        self._uygula_combobox_temasi()
+
+        # İkon yükleme
+        self._logo_img = None
+        if sys.platform == "win32" and os.path.exists(ICO_YOLU):
+            try:
+                self.iconbitmap(ICO_YOLU)
+            except Exception:
+                pass
+        try:
+            if os.path.exists(PNG_YOLU):
+                from PIL import Image, ImageTk
+                img = Image.open(PNG_YOLU).resize((32, 32), Image.Resampling.LANCZOS)
+                self._ikon_foto = ImageTk.PhotoImage(img)
+                self.iconphoto(True, self._ikon_foto)
+                img_logo = Image.open(PNG_YOLU).resize((34, 34), Image.Resampling.LANCZOS)
+                self._logo_img = ImageTk.PhotoImage(img_logo)
+        except Exception:
+            pass
+
+        self.style = ttk.Style()
+        ttk_stilleri_ayarla(self.style, self.renk, self.font_aile)
+
         self.yollar = []
         self.sonuclar = []
+        self._son_durum = None
+        self._dropzone_kompakt = False
         self.calisiyor = False
         self.hedef_klasor = None                    # None = Word dosyasının yanına
-        self.renk = tema_sec(self)
         self.editor_var = bool(udf_onizle.editor_home())
         self._kur()
         try:                                        # Finder'dan uygulamaya sürükleme
@@ -359,109 +882,600 @@ class Uygulama(TEMEL_PENCERE):
         except tk.TclError:
             pass
 
+    def _uygula_combobox_temasi(self):
+        self.option_add("*TCombobox*Listbox.background", self.renk["bg_kart"])
+        self.option_add("*TCombobox*Listbox.foreground", self.renk["yazi"])
+        self.option_add("*TCombobox*Listbox.selectBackground", self.renk["secim"])
+        self.option_add("*TCombobox*Listbox.selectForeground", self.renk["secim_yazi"])
+
     # ---------------------------------------------------------------- yerleşim
     def _kur(self):
-        dis = ttk.Frame(self, padding=14)
-        dis.pack(fill="both", expand=True)
+        self.configure(bg=self.renk["bg_pencere"])
+        pencerelere_koyu_baslik_uygula(self, self.tema_koyu)
 
-        ust = ttk.Frame(dis)
-        ust.pack(fill="x")
-        ttk.Label(ust, text=UYGULAMA_ADI, font=("Helvetica", 15, "bold")).pack(side="left")
-        ttk.Button(ust, text="Hakkında", width=9, command=self.hakkinda_ac).pack(side="right")
-        ttk.Label(dis, text="Word belgesini UDF'ye, UDF belgesini Word'e biçimini bozmadan çevirir.",
-                  foreground=self.renk["soluk"], font=("Helvetica", 11)).pack(anchor="w", pady=(2, 0))
+        # Ana Taşıyıcı
+        self.ana_tasiyici = ttk.Frame(self, padding=(18, 16))
+        self.ana_tasiyici.pack(fill="both", expand=True)
+        dis = self.ana_tasiyici
 
-        # --- bırakma alanı ---
-        self.birak = tk.Frame(dis, highlightthickness=2, highlightbackground=self.renk["cizgi"],
-                              highlightcolor=self.renk["cizgi"], bd=0)
-        self.birak.pack(fill="x", pady=(12, 10))
-        ic = ttk.Frame(self.birak, padding=18)
-        ic.pack(fill="both", expand=True)
+        # ==========================================
+        # 1. ÜST BAŞLIK & MARKA BARI
+        # ==========================================
+        self.ust_bar = ttk.Frame(dis)
+        self.ust_bar.pack(fill="x", pady=(0, 12))
 
-        # Sürükle-bırak yazısı ancak GERÇEKTEN kurulabildiyse yazılır: paket
-        # içinde tkdnd kütüphanesi eksikse import başarılı olur ama kayıt çöker.
+        # Sol: Logo mark + Başlık + Versiyon rozeti + Alt başlık
+        self.marka_sol = ttk.Frame(self.ust_bar)
+        self.marka_sol.pack(side="left", fill="y")
+
+        self.logo_canvas = tk.Canvas(self.marka_sol, width=38, height=38,
+                                     bg=self.renk["bg_pencere"], highlightthickness=0)
+        self.logo_canvas.pack(side="left", padx=(0, 10))
+        self._ciz_logo_mark()
+
+        self.baslik_kutusu = ttk.Frame(self.marka_sol)
+        self.baslik_kutusu.pack(side="left", fill="y")
+
+        self.baslik_ust = ttk.Frame(self.baslik_kutusu)
+        self.baslik_ust.pack(anchor="w")
+
+        self.lbl_baslik = tk.Label(self.baslik_ust, text=UYGULAMA_ADI, font=(self.font_aile, 15, "bold"),
+                                   bg=self.renk["bg_pencere"], fg=self.renk["yazi"])
+        self.lbl_baslik.pack(side="left")
+
+        self.lbl_surum_rozet = tk.Label(self.baslik_ust, text=f"v{SURUM}", font=(self.font_aile, 8, "bold"),
+                                        bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"],
+                                        padx=6, pady=1, relief="flat")
+        self.lbl_surum_rozet.pack(side="left", padx=(8, 0))
+
+        self.lbl_alt_baslik = tk.Label(self.baslik_kutusu,
+                                       text="Word ↔ UDF • Markdown ↔ UDF Güvenli ve Biçim Koruyan Çevirici",
+                                       font=(self.font_aile, 10),
+                                       bg=self.renk["bg_pencere"], fg=self.renk["soluk"])
+        self.lbl_alt_baslik.pack(anchor="w", pady=(1, 0))
+
+        # Sağ: Tema Butonu & Hakkında Butonu
+        self.aksiyon_sag = ttk.Frame(self.ust_bar)
+        self.aksiyon_sag.pack(side="right", fill="y")
+
+        self.btn_tema = ttk.Button(self.aksiyon_sag,
+                                   text="☀️ Açık" if self.tema_koyu else "🌙 Koyu",
+                                   style="Ghost.TButton",
+                                   command=self.tema_degistir)
+        self.btn_tema.pack(side="left", padx=(0, 6))
+
+        self.btn_hakkinda = ttk.Button(self.aksiyon_sag, text="Hakkında", style="Ghost.TButton", command=self.hakkinda_ac)
+        self.btn_hakkinda.pack(side="left")
+
+        # ==========================================
+        # 2. SÜRÜKLE-BIRAK (DROPZONE) KARTI
+        # ==========================================
+        self.birak = self.birak_kart = tk.Frame(
+            dis,
+            bg=self.renk["drop_bg"],
+            highlightthickness=2,
+            highlightbackground=self.renk["drop_cizgi"],
+            cursor="hand2"
+        )
+        self.birak.pack(fill="both", expand=True, pady=(0, 10))
+
+        self.birak_ic = tk.Frame(self.birak_kart, bg=self.renk["drop_bg"], padx=20, pady=24, cursor="hand2")
+        self.birak_ic.pack(fill="both", expand=True)
+
+        self.drop_canvas = tk.Canvas(self.birak_ic, width=64, height=64,
+                                     bg=self.renk["drop_bg"], highlightthickness=0, cursor="hand2")
+        self.drop_canvas.pack(pady=(0, 6))
+        self._ciz_drop_ikon()
+
         surukleme = False
         if SURUKLENEBILIR:
             try:
-                self.drop_target_register(DND_FILES)
-                self.dnd_bind("<<Drop>>", self._birakildi)
+                for w in (self, self.birak, self.birak_ic):
+                    try:
+                        w.drop_target_register(DND_FILES)
+                        w.dnd_bind("<<Drop>>", self._birakildi)
+                        w.dnd_bind("<<DragEnter>>", self._surukleme_girdi)
+                        w.dnd_bind("<<DragLeave>>", self._surukleme_cikti)
+                    except Exception:
+                        pass
                 surukleme = True
             except Exception:
                 surukleme = False
-        self.birak_yazi = ttk.Label(ic, font=("Helvetica", 13),
-                                    text="Word ya da UDF belgelerini buraya bırakın" if surukleme
-                                    else "Çevrilecek Word ya da UDF belgelerini seçin")
-        self.birak_yazi.pack()
-        alt_yazi = ttk.Label(ic, foreground=self.renk["soluk"], font=("Helvetica", 11),
-                             text="veya tıklayıp seçin · Word ve Pages → UDF · .udf → Word" if surukleme
-                             else "tıklayıp seçin · Word ve Pages → UDF · .udf → Word")
-        alt_yazi.pack(pady=(3, 0))
-        for w in (self.birak, ic, self.birak_yazi, alt_yazi):
+
+        self.birak_yazi = tk.Label(
+            self.birak_ic,
+            font=(self.font_aile, 13, "bold"),
+            bg=self.renk["drop_bg"],
+            fg=self.renk["yazi"],
+            cursor="hand2",
+            text="Word, Markdown veya UDF belgelerini buraya bırakın" if surukleme
+                 else "Çevrilecek Word, Markdown veya UDF belgelerini seçin"
+        )
+        self.birak_yazi.pack(pady=(6, 2))
+
+        self.birak_alt_yazi = tk.Label(
+            self.birak_ic,
+            font=(self.font_aile, 10),
+            bg=self.renk["drop_bg"],
+            fg=self.renk["soluk"],
+            cursor="hand2",
+            text="veya bilgisayarınızdan seçmek için bu alana tıklayın"
+        )
+        self.birak_alt_yazi.pack(pady=(2, 0))
+
+        # Format hap rozetleri
+        self.rozet_kutusu = tk.Frame(self.birak_ic, bg=self.renk["drop_bg"], cursor="hand2")
+        self.rozet_kutusu.pack(pady=(14, 0))
+        self.format_rozetleri = []
+        for rozet_metni in ("📄 Word (.docx)", "⚖️ UYAP (.udf)", "📝 Markdown (.md)", "📑 Pages / RTF"):
+            lbl_r = tk.Label(
+                self.rozet_kutusu, text=rozet_metni,
+                font=(self.font_aile, 9),
+                bg=self.renk["bg_kart_alt"],
+                fg=self.renk["soluk"],
+                padx=8, pady=3, relief="flat", cursor="hand2"
+            )
+            lbl_r.pack(side="left", padx=4)
+            self.format_rozetleri.append(lbl_r)
+
+        # Hover & Tıklama Olayları
+        self.birak_ogeler = [self.birak, self.birak_ic, self.drop_canvas, self.birak_yazi,
+                             self.birak_alt_yazi, self.rozet_kutusu] + self.format_rozetleri
+        for w in self.birak_ogeler:
             w.bind("<Button-1>", lambda e: self.dosya_ekle())
+            w.bind("<Enter>", self._drop_hover_gir)
+            w.bind("<Leave>", self._drop_hover_cik)
 
-        # --- dosya listesi ---
-        self.liste_cerceve = ttk.Frame(dis)
-        self.liste = tk.Listbox(self.liste_cerceve, height=5, activestyle="none",
-                                highlightthickness=0, borderwidth=1, relief="solid",
-                                selectmode="extended", font=("Helvetica", 12),
-                                background=self.renk["kagit"], foreground=self.renk["yazi"],
-                                selectbackground=self.renk["secim"],
-                                selectforeground=self.renk["yazi"])
-        self.liste.pack(fill="x")
-        alt_liste = ttk.Frame(self.liste_cerceve)
-        alt_liste.pack(fill="x", pady=(5, 0))
-        self.sayi_yazi = ttk.Label(alt_liste, text="", foreground=self.renk["soluk"],
-                                   font=("Helvetica", 11))
-        self.sayi_yazi.pack(side="left")
-        ttk.Button(alt_liste, text="Temizle", width=8, command=self.temizle).pack(side="right")
-        ttk.Button(alt_liste, text="Çıkar", width=7, command=self.sil).pack(side="right", padx=5)
+        # ==========================================
+        # 3. SEÇİLEN BELGELER LİSTESİ (KART)
+        # ==========================================
+        self.liste_cerceve = self.liste_kart = tk.Frame(
+            dis,
+            bg=self.renk["bg_kart"],
+            highlightthickness=1,
+            highlightbackground=self.renk["cizgi"],
+            padx=12, pady=10
+        )
 
-        # --- ayarlar ---
-        self.ayar = ttk.LabelFrame(dis, text="Ayarlar", padding=(10, 6))
-        s1 = self.ayar_word = ttk.Frame(self.ayar)        # yalnız Word → UDF için; listede .docx yoksa gizlenir
-        s1.pack(fill="x")
-        ttk.Label(s1, text="Sayfa numarası:", width=16).pack(side="left")
+        self.liste_ust = tk.Frame(self.liste_kart, bg=self.renk["bg_kart"])
+        self.liste_ust.pack(fill="x", pady=(0, 8))
+
+        self.liste_baslik_sol = tk.Frame(self.liste_ust, bg=self.renk["bg_kart"])
+        self.liste_baslik_sol.pack(side="left")
+
+        self.lbl_liste_baslik = tk.Label(
+            self.liste_baslik_sol,
+            text="📁 Seçilen Belgeler",
+            font=(self.font_aile, 11, "bold"),
+            bg=self.renk["bg_kart"],
+            fg=self.renk["yazi"]
+        )
+        self.lbl_liste_baslik.pack(side="left")
+
+        self.sayi_yazi = tk.Label(
+            self.liste_baslik_sol,
+            text="",
+            font=(self.font_aile, 9, "bold"),
+            bg=self.renk["bg_kart_alt"],
+            fg=self.renk["soluk"],
+            padx=6, pady=1
+        )
+        self.sayi_yazi.pack(side="left", padx=(8, 0))
+
+        # Sağ: Kaldır ve Temizle butonları
+        self.liste_butonlar = tk.Frame(self.liste_ust, bg=self.renk["bg_kart"])
+        self.liste_butonlar.pack(side="right")
+
+        self.btn_sil = ttk.Button(self.liste_butonlar, text="🗑️ Kaldır", style="Secondary.TButton", command=self.sil)
+        self.btn_sil.pack(side="right")
+
+        self.btn_temizle = ttk.Button(self.liste_butonlar, text="✕ Temizle", style="Secondary.TButton", command=self.temizle)
+        self.btn_temizle.pack(side="right", padx=(0, 6))
+
+        # Treeview ve Scrollbar taşıyıcısı
+        self.tablo_kutu = tk.Frame(self.liste_kart, bg=self.renk["bg_kart"])
+        self.tablo_kutu.pack(fill="both", expand=True)
+
+        self.liste = ModernListe(self.tablo_kutu, font_aile=self.font_aile)
+        self.liste_kaydir = ttk.Scrollbar(self.tablo_kutu, orient="vertical", command=self.liste.yview, style="Vertical.TScrollbar")
+        self.liste.configure(yscrollcommand=self.liste_kaydir.set)
+
+        self.liste.pack(side="left", fill="both", expand=True)
+        self.liste_kaydir.pack(side="right", fill="y")
+        self.liste.bind("<Double-1>", self._liste_cift_tikla)
+        self.liste.bind("<Delete>", lambda e: self.sil())
+        self.liste.bind("<BackSpace>", lambda e: self.sil())
+        self.liste.bind("<Control-a>", self._tumunu_sec)
+        self.liste.bind("<Command-a>", self._tumunu_sec)
+        self.liste.bind("<Return>", lambda e: self.belge_ac())
+        self.liste.bind("<Button-3>", self._sag_tik_menusu)
+        self.liste.bind("<Button-2>", self._sag_tik_menusu)
+        if SURUKLENEBILIR:
+            try:
+                self.liste.drop_target_register(DND_FILES)
+                self.liste.dnd_bind("<<Drop>>", self._birakildi)
+                self.liste.dnd_bind("<<DragEnter>>", self._surukleme_girdi)
+                self.liste.dnd_bind("<<DragLeave>>", self._surukleme_cikti)
+            except Exception:
+                pass
+
+        # ==========================================
+        # 4. AYARLAR KARTI
+        # ==========================================
+        self.ayar = self.ayar_kart = tk.Frame(
+            dis,
+            bg=self.renk["bg_kart"],
+            highlightthickness=1,
+            highlightbackground=self.renk["cizgi"],
+            padx=14, pady=10
+        )
+
+        self.lbl_ayar_baslik = tk.Label(
+            self.ayar_kart,
+            text="⚙️ Dönüşüm Ayarları",
+            font=(self.font_aile, 11, "bold"),
+            bg=self.renk["bg_kart"],
+            fg=self.renk["yazi"]
+        )
+        self.lbl_ayar_baslik.pack(anchor="w", pady=(0, 8))
+
+        # Word seçenekleri (sayfa no & dolgu)
+        self.ayar_word = tk.Frame(self.ayar_kart, bg=self.renk["bg_kart"])
+        self.ayar_word.pack(fill="x", pady=(0, 6))
+
+        self.lbl_sayfa_no = tk.Label(self.ayar_word, text="Sayfa No:", font=(self.font_aile, 10),
+                                     bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"])
+        self.lbl_sayfa_no.pack(side="left")
+
         self.sayfa_no = tk.StringVar(value="Word'deki gibi")
-        ttk.Combobox(s1, textvariable=self.sayfa_no, values=list(SAYFA_NO), state="readonly",
-                     width=16).pack(side="left")
-        ttk.Label(s1, text="  Tablo dolgusu:").pack(side="left")
+        self.cmb_sayfa = ttk.Combobox(self.ayar_word, textvariable=self.sayfa_no,
+                                      values=list(SAYFA_NO), state="readonly", width=14)
+        self.cmb_sayfa.pack(side="left", padx=(6, 16))
+
+        self.lbl_dolgu = tk.Label(self.ayar_word, text="Tablo Dolgusu:", font=(self.font_aile, 10),
+                                  bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"])
+        self.lbl_dolgu.pack(side="left")
+
         self.dolgu = tk.StringVar(value="Renk bandı")
-        ttk.Combobox(s1, textvariable=self.dolgu, values=list(DOLGU), state="readonly",
-                     width=11).pack(side="left", padx=(4, 0))
-        s2 = self.ayar_kayit = ttk.Frame(self.ayar)
-        s2.pack(fill="x", pady=(6, 0))
-        ttk.Label(s2, text="Kayıt yeri:", width=16).pack(side="left")
-        self.hedef_yazi = ttk.Label(s2, text="Belgenin yanına", foreground=self.renk["soluk"])
-        self.hedef_yazi.pack(side="left")
-        ttk.Button(s2, text="Değiştir…", width=10, command=self.hedef_sec).pack(side="right")
+        self.cmb_dolgu = ttk.Combobox(self.ayar_word, textvariable=self.dolgu,
+                                      values=list(DOLGU), state="readonly", width=12)
+        self.cmb_dolgu.pack(side="left", padx=(6, 0))
 
-        # --- eylem ve durum ---
-        self.btn_cevir = ttk.Button(dis, text="Çevir", command=self.cevir_baslat)
-        self.ilerleme = ttk.Progressbar(dis, mode="determinate")
-        self.durum_kutu = tk.Frame(dis, highlightthickness=1, bd=0)
-        durum_ic = ttk.Frame(self.durum_kutu, padding=11)
-        durum_ic.pack(fill="both", expand=True)
-        self.durum_baslik = ttk.Label(durum_ic, text="", font=("Helvetica", 13, "bold"))
+        # Kayıt yeri
+        self.ayar_kayit = tk.Frame(self.ayar_kart, bg=self.renk["bg_kart"])
+        self.ayar_kayit.pack(fill="x")
+
+        self.lbl_kayit_baslik = tk.Label(self.ayar_kayit, text="Kayıt Yeri:", font=(self.font_aile, 10),
+                                         bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"])
+        self.lbl_kayit_baslik.pack(side="left")
+
+        self.hedef_yazi = tk.Label(
+            self.ayar_kayit,
+            text="📁 Belgenin yanına",
+            font=(self.font_aile, 9),
+            bg=self.renk["bg_kart_alt"],
+            fg=self.renk["soluk"],
+            padx=8, pady=2
+        )
+        self.hedef_yazi.pack(side="left", padx=(6, 8))
+
+        self.btn_hedef_sifirla = ttk.Button(self.ayar_kayit, text="✕ Sıfırla", style="Ghost.TButton",
+                                            command=self.hedef_sifirla)
+        self.btn_hedef = ttk.Button(self.ayar_kayit, text="Değiştir…", style="Secondary.TButton", command=self.hedef_sec)
+        self.btn_hedef.pack(side="right")
+
+        # ==========================================
+        # 5. DÖNÜŞTÜR BUTONU & İLERLEME ÇUBUĞU
+        # ==========================================
+        self.btn_cevir = ttk.Button(
+            dis,
+            text="🔄 Belgeleri Dönüştür",
+            style="Primary.TButton",
+            command=self.cevir_baslat
+        )
+        self.ilerleme = ttk.Progressbar(dis, style="Horizontal.TProgressbar", mode="determinate")
+
+        # ==========================================
+        # 6. DURUM & SONUÇ BİLDİRİM KARTI
+        # ==========================================
+        self.durum_kutu = tk.Frame(
+            dis,
+            bg=self.renk["yesil_bg"],
+            highlightthickness=2,
+            highlightbackground=self.renk["yesil_cizgi"],
+            padx=14, pady=12
+        )
+        self.durum_baslik = tk.Label(
+            self.durum_kutu,
+            text="",
+            font=(self.font_aile, 12, "bold"),
+            bg=self.renk["yesil_bg"],
+            fg=self.renk["yesil_yazi"]
+        )
         self.durum_baslik.pack(anchor="w")
-        self.durum_detay = ttk.Label(durum_ic, text="", foreground=self.renk["soluk"],
-                                     font=("Helvetica", 11), wraplength=548, justify="left")
-        self.durum_detay.pack(anchor="w", pady=(2, 0))
 
+        self.durum_detay = tk.Label(
+            self.durum_kutu,
+            text="",
+            font=(self.font_aile, 10),
+            bg=self.renk["yesil_bg"],
+            fg=self.renk["yesil_yazi"],
+            wraplength=550,
+            justify="left"
+        )
+        self.durum_detay.pack(anchor="w", pady=(3, 0))
+        self.durum_kutu.bind("<Configure>", self._ayarla_durum_wraplength)
+
+        # Sonuç Aksiyon Butonları
         self.sonuc_cerceve = ttk.Frame(dis)
-        ttk.Button(self.sonuc_cerceve, text="Rapor", command=self.rapor_ac).pack(side="left")
-        ttk.Button(self.sonuc_cerceve, text="Klasörde göster",
-                   command=self.klasor_ac).pack(side="left", padx=8)
-        ttk.Button(self.sonuc_cerceve, text="Belgeyi aç", command=self.belge_ac).pack(side="left", padx=(0, 8))
-        self.btn_onizle = ttk.Button(self.sonuc_cerceve, text="Editör önizlemesi",
+        self.btn_rapor = ttk.Button(self.sonuc_cerceve, text="📋 Rapor", style="Secondary.TButton", command=self.rapor_ac)
+        self.btn_rapor.pack(side="left")
+
+        self.btn_klasor = ttk.Button(self.sonuc_cerceve, text="📂 Klasörde Göster", style="Secondary.TButton",
+                                     command=self.klasor_ac)
+        self.btn_klasor.pack(side="left", padx=8)
+
+        self.btn_ac = ttk.Button(self.sonuc_cerceve, text="📄 Belgeyi Aç", style="Secondary.TButton",
+                                 command=self.belge_ac)
+        self.btn_ac.pack(side="left", padx=(0, 8))
+
+        self.btn_onizle = ttk.Button(self.sonuc_cerceve, text="👁️ Editör Önizlemesi", style="Secondary.TButton",
                                      command=self.onizle_baslat)
 
-        ttk.Label(dis, foreground=self.renk["soluk"], font=("Helvetica", 10),
-                  text=f"{YAZAR} · s{SURUM}").pack(side="bottom", anchor="w")
+        # ==========================================
+        # 7. ALT BİLGİ & GÜVENLİK ROZETİ (FOOTER)
+        # ==========================================
+        self.footer = tk.Frame(dis, bg=self.renk["bg_pencere"])
+        self.footer.pack(side="bottom", fill="x", pady=(8, 0))
+
+        self.lbl_telif = tk.Label(
+            self.footer,
+            text=f"{YAZAR} · s{SURUM}",
+            font=(self.font_aile, 9),
+            bg=self.renk["bg_pencere"],
+            fg=self.renk["soluk"]
+        )
+        self.lbl_telif.pack(side="left")
+
+        self.lbl_guvenlik = tk.Label(
+            self.footer,
+            text="🔒 Çevrimdışı ve Yerel",
+            font=(self.font_aile, 9),
+            bg=self.renk["bg_pencere"],
+            fg=self.renk["soluk"]
+        )
+        self.lbl_guvenlik.pack(side="right")
+
+        # Klavye kısayolları
+        self.bind("<Control-Return>", lambda e: self.cevir_baslat())
+        self.bind("<Command-Return>", lambda e: self.cevir_baslat())
+        self.bind("<Control-o>", lambda e: self.dosya_ekle())
+        self.bind("<Control-O>", lambda e: self.dosya_ekle())
+        self.bind("<Command-o>", lambda e: self.dosya_ekle())
+        self.bind("<Command-O>", lambda e: self.dosya_ekle())
+        self.bind("<Control-d>", lambda e: self.tema_degistir())
+        self.bind("<Command-d>", lambda e: self.tema_degistir())
+        self.bind("<F1>", lambda e: self.hakkinda_ac())
+
         self.listeyi_ciz()
+
+    def _ciz_logo_mark(self):
+        c = self.logo_canvas
+        c.delete("all")
+        c.configure(bg=self.renk["bg_pencere"])
+        if hasattr(self, "_logo_img") and self._logo_img:
+            c.create_image(19, 19, image=self._logo_img)
+        else:
+            c.create_oval(2, 2, 36, 36, fill=self.renk["birincil"], outline="")
+            c.create_text(19, 19, text="UDF", fill="#ffffff", font=(self.font_aile, 9, "bold"))
+
+    def _ciz_drop_ikon(self, hover=False):
+        c = self.drop_canvas
+        c.delete("all")
+        bg = self.renk["drop_hover"] if hover else self.renk["drop_bg"]
+        c.configure(bg=bg)
+        cx, cy = 32, 32
+        r = 24
+        circle_bg = self.renk["secim"] if not hover else (
+            "#dbeafe" if self.renk["ad"] == "Açık" else "#1e3a8a"
+        )
+        circle_border = self.renk["cizgi_odak"] if hover else self.renk["cizgi"]
+        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=circle_bg, outline=circle_border, width=2)
+        ok_renk = self.renk["birincil"] if not hover else self.renk["cizgi_odak"]
+        c.create_line(cx, cy + 9, cx, cy - 8, fill=ok_renk, width=2, capstyle="round")
+        c.create_polygon(cx - 7, cy - 3, cx, cy - 12, cx + 7, cy - 3, fill=ok_renk, outline="")
+        c.create_line(cx - 10, cy + 13, cx + 10, cy + 13, fill=ok_renk, width=2, capstyle="round")
+
+    def _ayarla_dropzone_modu(self, kompakt=False):
+        self._dropzone_kompakt = kompakt
+        if kompakt:
+            self.rozet_kutusu.pack_forget()
+            self.birak_alt_yazi.pack_forget()
+            self.drop_canvas.pack_forget()
+            self.birak.pack_configure(fill="x", expand=False)
+            self.birak_ic.pack_configure(fill="x", expand=False)
+            self.birak_ic.configure(pady=8, padx=14)
+            self.birak_yazi.configure(
+                text="➕ Daha fazla belge eklemek için buraya sürükleyin veya tıklayın",
+                font=(self.font_aile, 10, "bold")
+            )
+        else:
+            self.birak.pack_configure(fill="both", expand=True)
+            self.birak_ic.pack_configure(fill="both", expand=True)
+            self.birak_ic.configure(pady=24, padx=20)
+            self.drop_canvas.pack(pady=(0, 6))
+            surukleme = SURUKLENEBILIR
+            self.birak_yazi.configure(
+                font=(self.font_aile, 13, "bold"),
+                text="Word, Markdown veya UDF belgelerini buraya bırakın" if surukleme
+                     else "Çevrilecek Word, Markdown veya UDF belgelerini seçin"
+            )
+            self.birak_alt_yazi.pack(pady=(4, 0))
+            self.rozet_kutusu.pack(pady=(16, 0))
+            self._ciz_drop_ikon(hover=False)
+
+    def _ayarla_durum_wraplength(self, event=None):
+        try:
+            if hasattr(self, "durum_detay") and hasattr(self, "durum_kutu"):
+                w = self.durum_kutu.winfo_width()
+                if w > 100:
+                    self.durum_detay.configure(wraplength=max(320, w - 40))
+        except Exception:
+            pass
+
+    def _tumunu_sec(self, event=None):
+        self.liste.selection_set(self.liste.get_children())
+        return "break"
+
+    def _sag_tik_menusu(self, event):
+        row_id = self.liste.identify_row(event.y)
+        if row_id:
+            if row_id not in self.liste.selection():
+                self.liste.selection_set(row_id)
+        if not self.liste.curselection():
+            return
+
+        menu = tk.Menu(self, tearoff=0, bg=self.renk["bg_kart"], fg=self.renk["yazi"],
+                       activebackground=self.renk["secim"], activeforeground=self.renk["secim_yazi"],
+                       relief="flat", bd=1)
+        r = self._secili_sonuc()
+        if r and r["tamam"]:
+            menu.add_command(label="📄 Çevrilen Belgeyi Aç", command=self.belge_ac)
+            menu.add_command(label="📂 Çıktı Klasöründe Göster", command=self.klasor_ac)
+            if self.editor_var and r["yon"] == "word>udf":
+                menu.add_command(label="👁️ Editör Önizlemesi", command=self.onizle_baslat)
+            menu.add_separator()
+        else:
+            sec = self.liste.curselection()
+            if sec:
+                menu.add_command(label="📄 Kaynak Belgeyi Aç", command=lambda: dosya_ac(self.yollar[sec[0]]))
+                menu.add_command(label="📂 Klasörde Göster", command=lambda: klasorde_goster(self.yollar[sec[0]]))
+                menu.add_separator()
+
+        menu.add_command(label="🗑️ Listeden Kaldır", command=self.sil)
+        menu.add_command(label="✕ Listeyi Temizle", command=self.temizle)
+        if self.sonuclar:
+            menu.add_separator()
+            menu.add_command(label="📋 Çeviri Raporunu Gör", command=self.rapor_ac)
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _drop_hover_gir(self, event=None):
+        if self.calisiyor:
+            return
+        bg = self.renk["drop_hover"]
+        self.birak_kart.configure(bg=bg, highlightbackground=self.renk["drop_cizgi_hover"])
+        self.birak_ic.configure(bg=bg)
+        self.birak_yazi.configure(bg=bg, fg=self.renk["yazi"])
+        self.birak_alt_yazi.configure(bg=bg, fg=self.renk["soluk"])
+        self.rozet_kutusu.configure(bg=bg)
+        if not self._dropzone_kompakt:
+            self._ciz_drop_ikon(hover=True)
+
+    def _drop_hover_cik(self, event=None):
+        if self.calisiyor:
+            return
+        bg = self.renk["drop_bg"]
+        self.birak_kart.configure(bg=bg, highlightbackground=self.renk["drop_cizgi"])
+        self.birak_ic.configure(bg=bg)
+        self.birak_yazi.configure(bg=bg, fg=self.renk["yazi"])
+        self.birak_alt_yazi.configure(bg=bg, fg=self.renk["soluk"])
+        self.rozet_kutusu.configure(bg=bg)
+        if not self._dropzone_kompakt:
+            self._ciz_drop_ikon(hover=False)
+
+    def _surukleme_girdi(self, event=None):
+        self._drop_hover_gir()
+
+    def _surukleme_cikti(self, event=None):
+        self._drop_hover_cik()
+
+    def tema_degistir(self):
+        self.tema_koyu = not self.tema_koyu
+        self.renk = PALETLER["koyu" if self.tema_koyu else "acik"]
+        self._tema_guncelle()
+
+    def _tema_guncelle(self):
+        self.configure(bg=self.renk["bg_pencere"])
+        pencerelere_koyu_baslik_uygula(self, self.tema_koyu)
+        self._uygula_combobox_temasi()
+        self.style = ttk.Style()
+        ttk_stilleri_ayarla(self.style, self.renk, self.font_aile)
+
+        self.btn_tema.configure(text="☀️ Açık" if self.tema_koyu else "🌙 Koyu")
+        self.lbl_baslik.configure(bg=self.renk["bg_pencere"], fg=self.renk["yazi"])
+        self.lbl_surum_rozet.configure(bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"])
+        self.lbl_alt_baslik.configure(bg=self.renk["bg_pencere"], fg=self.renk["soluk"])
+
+        bg_drop = self.renk["drop_bg"]
+        self.birak_kart.configure(bg=bg_drop, highlightbackground=self.renk["drop_cizgi"])
+        self.birak_ic.configure(bg=bg_drop)
+        self.birak_yazi.configure(bg=bg_drop, fg=self.renk["yazi"])
+        self.birak_alt_yazi.configure(bg=bg_drop, fg=self.renk["soluk"])
+        self.rozet_kutusu.configure(bg=bg_drop)
+
+        self._ciz_logo_mark()
+        self._ciz_drop_ikon()
+
+        self.liste_kart.configure(bg=self.renk["bg_kart"], highlightbackground=self.renk["cizgi"])
+        if hasattr(self, "liste_ust"):
+            self.liste_ust.configure(bg=self.renk["bg_kart"])
+            self.liste_baslik_sol.configure(bg=self.renk["bg_kart"])
+            self.liste_butonlar.configure(bg=self.renk["bg_kart"])
+            self.tablo_kutu.configure(bg=self.renk["bg_kart"])
+        self.lbl_liste_baslik.configure(bg=self.renk["bg_kart"], fg=self.renk["yazi"])
+        self.sayi_yazi.configure(bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"])
+
+        self.ayar_kart.configure(bg=self.renk["bg_kart"], highlightbackground=self.renk["cizgi"])
+        self.lbl_ayar_baslik.configure(bg=self.renk["bg_kart"], fg=self.renk["yazi"])
+        self.ayar_word.configure(bg=self.renk["bg_kart"])
+        self.lbl_sayfa_no.configure(bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"])
+        self.lbl_dolgu.configure(bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"])
+        self.ayar_kayit.configure(bg=self.renk["bg_kart"])
+        self.lbl_kayit_baslik.configure(bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"])
+        self.hedef_yazi.configure(bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"])
+
+        self.footer.configure(bg=self.renk["bg_pencere"])
+        self.lbl_telif.configure(bg=self.renk["bg_pencere"], fg=self.renk["soluk"])
+        self.lbl_guvenlik.configure(bg=self.renk["bg_pencere"], fg=self.renk["soluk"])
+
+        for lbl_r in self.format_rozetleri:
+            lbl_r.configure(bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"])
+
+        if self._son_durum and bool(self.durum_kutu.winfo_manager()):
+            tur, baslik, detay = self._son_durum
+            renk_bg = self.renk.get(f"{tur}_bg", self.renk["bg_kart"])
+            renk_cizgi = self.renk.get(f"{tur}_cizgi", self.renk[tur])
+            renk_yazi = self.renk.get(f"{tur}_yazi", self.renk[tur])
+            ikon = "✓ " if tur == "yesil" else ("⚠️ " if tur == "sari" else "✕ ")
+            self.durum_kutu.configure(highlightbackground=renk_cizgi, bg=renk_bg)
+            self.durum_baslik.configure(text=f"{ikon}{baslik}", bg=renk_bg, fg=renk_yazi)
+            self.durum_detay.configure(text=detay, bg=renk_bg, fg=renk_yazi)
+
+        self.listeyi_ciz()
+
+    def _liste_cift_tikla(self, event=None):
+        self.belge_ac()
 
     # ------------------------------------------------------------ dosya işleri
     def _birakildi(self, olay):
-        self.ekle(self.tk.splitlist(olay.data))
+        self._drop_hover_cik()
+        ham = getattr(olay, "data", "") or ""
+        try:
+            ham_yollar = self.tk.splitlist(ham)
+        except Exception:
+            ham_yollar = [ham]
+        yollar = []
+        for y in ham_yollar:
+            temiz = str(y).strip()
+            if temiz.startswith("{") and temiz.endswith("}"):
+                temiz = temiz[1:-1].strip()
+            if temiz:
+                yollar.append(temiz)
+        self.ekle(yollar)
 
     def dosya_ekle(self):
         if self.calisiyor:
@@ -516,26 +1530,58 @@ class Uygulama(TEMEL_PENCERE):
         durum = {r["kaynak"]: r for r in self.sonuclar}
         for y in self.yollar:
             r = durum.get(y)
-            im = "   " if r is None else ("✓ " if r["tamam"] else "✕ ")
-            yon = "→ Word" if y.lower().endswith(".udf") else "→ UDF"
-            self.liste.insert("end", f" {im}{os.path.basename(y)}   {yon}")
-            if r is not None:
-                self.liste.itemconfigure("end", foreground=self.renk["yesil" if r["tamam"] else "kirmizi"])
+            ext = os.path.splitext(y)[1].lower()
+            if ext == ".udf":
+                dosya_ikon = "⚖️"
+                yon = "UDF → Word"
+            elif ext in (".md", ".markdown"):
+                dosya_ikon = "📝"
+                yon = "MD → UDF"
+            elif ext == ".pages":
+                dosya_ikon = "📑"
+                yon = "Pages → UDF"
+            else:
+                dosya_ikon = "📄"
+                yon = "Word → UDF"
+
+            ad = os.path.basename(y)
+            if r is None:
+                durum_ikon = "⏳ Bekliyor"
+                tag = "bekliyor"
+            elif r["tamam"]:
+                durum_ikon = "✓ Çevrildi"
+                tag = "basarili"
+            else:
+                durum_ikon = "✕ Hata"
+                tag = "hatali"
+
+            self.liste.ekle_oge(durum_ikon, f"{dosya_ikon}  {ad}", yon, tag=tag)
+
+        self.liste.tag_configure("cevrimde", foreground=self.renk["birincil"])
+        self.liste.tag_configure("basarili", foreground=self.renk["yesil"])
+        self.liste.tag_configure("hatali", foreground=self.renk["kirmizi"])
+        self.liste.tag_configure("bekliyor", foreground=self.renk["soluk"])
+
         if self.yollar:
-            self.liste_cerceve.pack(fill="x", after=self.birak)
-            self.ayar.pack(fill="x", pady=(10, 0), after=self.liste_cerceve)
-            self.btn_cevir.pack(pady=(12, 0), after=self.ayar)
+            self._ayarla_dropzone_modu(kompakt=True)
+            self.liste_cerceve.pack(fill="both", expand=True, after=self.birak, pady=(0, 10))
+            self.ayar.pack(fill="x", after=self.liste_cerceve, pady=(0, 10))
+            self.btn_cevir.pack(fill="x", pady=(0, 10), after=self.ayar)
             self.sayi_yazi.configure(text=f"{len(self.yollar)} belge")
+            btn_metni = f"🔄 Yeniden Çevir ({len(self.yollar)} Belge)" if self.sonuclar else f"🔄 Çevir ({len(self.yollar)} Belge)"
+            self.btn_cevir.configure(text=btn_metni)
             if any(not y.lower().endswith(".udf") for y in self.yollar):
-                self.ayar_word.pack(fill="x", before=self.ayar_kayit)
+                self.ayar_word.pack(fill="x", before=self.ayar_kayit, pady=(0, 6))
             else:
                 self.ayar_word.pack_forget()
         else:
+            self._ayarla_dropzone_modu(kompakt=False)
             for w in (self.liste_cerceve, self.ayar, self.btn_cevir):
                 w.pack_forget()
 
     def sifirla(self):
         self.sonuclar = []
+        self._son_durum = None
         for w in (self.durum_kutu, self.sonuc_cerceve, self.ilerleme):
             w.pack_forget()
 
@@ -543,17 +1589,27 @@ class Uygulama(TEMEL_PENCERE):
         k = filedialog.askdirectory(title="Çevrilen belgelerin kaydedileceği klasör")
         if k:
             self.hedef_klasor = k
-            self.hedef_yazi.configure(text=k if len(k) < 44 else "…" + k[-42:])
-        else:
-            self.hedef_klasor = None
-            self.hedef_yazi.configure(text="Belgenin yanına")
+            self.hedef_yazi.configure(text=k if len(k) < 38 else "…" + k[-36:])
+            self.btn_hedef_sifirla.pack(side="right", padx=(0, 6), before=self.btn_hedef)
+
+    def hedef_sifirla(self):
+        self.hedef_klasor = None
+        self.hedef_yazi.configure(text="📁 Belgenin yanına")
+        self.btn_hedef_sifirla.pack_forget()
 
     def durum_goster(self, tur, baslik, detay):
-        renk = self.renk[tur]
-        self.durum_kutu.configure(highlightbackground=renk, highlightcolor=renk)
-        self.durum_baslik.configure(text=baslik, foreground=renk)
-        self.durum_detay.configure(text=detay)
-        self.durum_kutu.pack(fill="x", pady=(12, 0))
+        self._son_durum = (tur, baslik, detay)
+        renk_bg = self.renk.get(f"{tur}_bg", self.renk["bg_kart"])
+        renk_cizgi = self.renk.get(f"{tur}_cizgi", self.renk[tur])
+        renk_yazi = self.renk.get(f"{tur}_yazi", self.renk[tur])
+        ikon = "✓ " if tur == "yesil" else ("⚠️ " if tur == "sari" else "✕ ")
+
+        self.durum_kutu.configure(highlightbackground=renk_cizgi, bg=renk_bg)
+        self.durum_baslik.configure(text=f"{ikon}{baslik}", bg=renk_bg, fg=renk_yazi)
+        self.durum_detay.configure(text=detay, bg=renk_bg, fg=renk_yazi)
+        hedef_onceki = self.btn_cevir if bool(self.btn_cevir.winfo_manager()) else self.birak
+        self.durum_kutu.pack(fill="x", pady=(10, 0), after=hedef_onceki)
+        self._ayarla_durum_wraplength()
 
     # ---------------------------------------------------------------- çevirme
     def cevir_baslat(self):
@@ -561,7 +1617,7 @@ class Uygulama(TEMEL_PENCERE):
             return
         var_olan = []
         for y in self.yollar:
-            if y.lower().endswith(".udf"):                  # Word çıktısı hiçbir zaman var olanın üzerine yazmaz
+            if y.lower().endswith(".udf"):
                 continue
             hedef = os.path.join(self.hedef_klasor or os.path.dirname(y),
                                  os.path.splitext(os.path.basename(y))[0] + ".udf")
@@ -573,36 +1629,64 @@ class Uygulama(TEMEL_PENCERE):
             return
         self.sifirla()
         self.calisiyor = True
-        self.btn_cevir.configure(state="disabled", text="Çevriliyor…")
+        self.btn_cevir.configure(state="disabled", text="Dönüştürülüyor… ⏳")
         self.ilerleme.configure(maximum=len(self.yollar), value=0)
-        self.ilerleme.pack(fill="x", pady=(10, 0), after=self.btn_cevir)
+        self.ilerleme.pack(fill="x", pady=(0, 10), after=self.btn_cevir)
         ayar = (self.hedef_klasor, SAYFA_NO[self.sayfa_no.get()], DOLGU[self.dolgu.get()])
         threading.Thread(target=self._cevir_isi, args=(list(self.yollar),) + ayar, daemon=True).start()
 
     def _cevir_isi(self, yollar, klasor, sayfa_no, dolgu):
         sonuclar = []
         for i, y in enumerate(yollar, 1):
-            sonuclar.append(belge_cevir(y, klasor, sayfa_no, dolgu))
-            self.after(0, lambda n=i: self.ilerleme.configure(value=n))
+            self.after(0, lambda idx=i-1: self._adim_basladi(idx))
+            res = belge_cevir(y, klasor, sayfa_no, dolgu)
+            sonuclar.append(res)
+            self.after(0, lambda n=i, idx=i-1, r=res: self._adim_bitti(n, idx, r))
         self.after(0, lambda: self._cevir_bitti(sonuclar))
+
+    def _adim_basladi(self, idx):
+        if isinstance(idx, str) and idx in self.yollar:
+            idx = self.yollar.index(idx)
+        self.liste.guncelle_oge(idx, "⚡ Çevriliyor…", tag="cevrimde")
+        self.liste.see(idx)
+
+    def _adim_bitti(self, n, idx=None, sonuc=None):
+        if sonuc is None and isinstance(n, dict):
+            sonuc = n
+            idx = 0
+            if sonuc.get("kaynak") in self.yollar:
+                idx = self.yollar.index(sonuc["kaynak"])
+            n = idx + 1
+        elif isinstance(idx, str) and idx in self.yollar:
+            idx = self.yollar.index(idx)
+        if isinstance(n, int):
+            self.ilerleme.configure(value=n)
+        if sonuc:
+            tag = "basarili" if sonuc.get("tamam") else "hatali"
+            durum_metni = "✓ Çevrildi" if sonuc.get("tamam") else "✕ Hata"
+            self.liste.guncelle_oge(idx, durum_metni, tag=tag)
 
     def _cevir_bitti(self, sonuclar):
         self.calisiyor = False
         self.sonuclar = sonuclar
-        self.btn_cevir.configure(state="normal", text="Çevir")
+        self.btn_cevir.configure(state="normal")
         self.ilerleme.pack_forget()
         self.listeyi_ciz()
         iyi = [r for r in sonuclar if r["tamam"]]
         kotu = [r for r in sonuclar if not r["tamam"]]
         self._sonuc_yaz(iyi, kotu, 4)
-        self.sonuc_cerceve.pack(pady=(10, 0))
-        if self.editor_var and any(r["yon"] == "word>udf" for r in iyi):
-            self.btn_onizle.pack(side="left")
-            self.btn_onizle.configure(state="normal")
-        else:
-            self.btn_onizle.pack_forget()
+        self.sonuc_cerceve.pack(fill="x", pady=(10, 0), after=self.durum_kutu)
+        for w in (self.btn_rapor, self.btn_klasor, self.btn_ac, self.btn_onizle):
+            w.pack_forget()
+        self.btn_rapor.pack(side="left")
+        if iyi:
+            self.btn_klasor.pack(side="left", padx=6)
+            self.btn_ac.pack(side="left", padx=(0, 6))
+            if self.editor_var and any(r["yon"] == "word>udf" for r in iyi):
+                self.btn_onizle.pack(side="left")
+                self.btn_onizle.configure(state="normal")
         self._sigdir()
-        if self.winfo_reqheight() > self.winfo_screenheight() - 90:     # küçük ekran: daha az madde göster
+        if self.winfo_reqheight() > self.winfo_screenheight() - 90:
             self._sonuc_yaz(iyi, kotu, 2)
             self._sigdir()
 
@@ -611,7 +1695,7 @@ class Uygulama(TEMEL_PENCERE):
         gosterilecek, kalan = sade_uyarilar(iyi, en_cok)
         yonler = {r["yon"] for r in iyi}
         farklar = ""
-        if gosterilecek:                                    # uyarılar kutuda, sade dille; teknik metin Rapor'da
+        if gosterilecek:
             bas = ("Word'den farklı olan yerler:" if yonler == {"word>udf"} else
                    "Editör'dekinden farklı olan yerler:" if yonler == {"udf>word"} else "Dikkat edilecek yerler:")
             farklar = ("\n\n" + bas + "\n" + "\n".join("•  " + u for u in gosterilecek)
@@ -625,11 +1709,11 @@ class Uygulama(TEMEL_PENCERE):
                 son.append("Aynı adda bir Word belgesi vardı; üzerine yazılmadı, yeni belge \""
                            + yeni_ad[0] + "\" adıyla kaydedildi.")
             son.append("Word'de satır ve sayfa sonları Editör'dekinden biraz farklı düşebilir.")
-        if len(son) > 2:                                    # karışık çeviride kutu uzamasın
+        if len(son) > 2:
             son = son[:2]
         if iyi and not kotu:
             baslik = "Belge çevrildi" if len(iyi) == 1 else f"{len(iyi)} belge çevrildi"
-            detay = "Doğrulama geçti; metin eksiksiz." + farklar + "\n\n" + "\n".join(son)
+            detay = "Doğrulama geçti; metin eksiksiz." + farklar + ("\n\n" + "\n".join(son) if son else "")
             self.durum_goster("yesil" if not gosterilecek else "sari", baslik, detay)
         elif iyi:
             self.durum_goster("sari", f"{len(iyi)} belge çevrildi, {len(kotu)} belge çevrilemedi",
@@ -651,29 +1735,53 @@ class Uygulama(TEMEL_PENCERE):
         if self.sonuclar:
             RaporPenceresi(self, "Çeviri raporu", rapor_metni(self.sonuclar), self.renk)
 
-    def _secili_sonuc(self):
-        iyi = [r for r in self.sonuclar if r["tamam"]]
+    def _secili_sonuc(self, yalniz_tamam=False):
         sec = self.liste.curselection()
-        if sec:
+        if sec and sec[0] < len(self.yollar):
             y = self.yollar[sec[0]]
-            for r in iyi:
+            for r in self.sonuclar:
                 if r["kaynak"] == y:
+                    if yalniz_tamam and not r["tamam"]:
+                        return None
                     return r
-        return iyi[0] if iyi else None
+        iyi = [r for r in self.sonuclar if r["tamam"]]
+        if yalniz_tamam:
+            return iyi[0] if iyi else None
+        return iyi[0] if iyi else (self.sonuclar[0] if self.sonuclar else None)
 
     def klasor_ac(self):
+        if not self.sonuclar:
+            sec = self.liste.curselection()
+            if sec and sec[0] < len(self.yollar):
+                klasorde_goster(self.yollar[sec[0]])
+            return
         r = self._secili_sonuc()
         if r:
-            klasorde_goster(r["cikti"])
+            if r["tamam"]:
+                klasorde_goster(r["cikti"])
+            else:
+                klasorde_goster(r["kaynak"])
 
     def belge_ac(self):
+        if not self.sonuclar:
+            sec = self.liste.curselection()
+            if sec and sec[0] < len(self.yollar):
+                dosya_ac(self.yollar[sec[0]])
+            return
         r = self._secili_sonuc()
         if r:
-            dosya_ac(r["cikti"])
+            if r["tamam"]:
+                dosya_ac(r["cikti"])
+            else:
+                messagebox.showwarning(
+                    UYGULAMA_ADI,
+                    f"'{os.path.basename(r['kaynak'])}' belgesi çevrilemediği için çıktısı bulunmuyor.\n\n"
+                    f"Sorun detayı: {r['hata']}"
+                )
 
     def onizle_baslat(self):
-        r = self._secili_sonuc()
-        if r and r["yon"] != "word>udf":                    # önizleme UDF çıktısı içindir
+        r = self._secili_sonuc(yalniz_tamam=True)
+        if r and r["yon"] != "word>udf":
             r = next((x for x in self.sonuclar if x["tamam"] and x["yon"] == "word>udf"), None)
         if not r or self.calisiyor:
             return
@@ -692,11 +1800,11 @@ class Uygulama(TEMEL_PENCERE):
 
     def _onizle_bitti(self, sayfalar, hata):
         self.calisiyor = False
-        self.btn_onizle.configure(state="normal", text="Editör önizlemesi")
+        self.btn_onizle.configure(state="normal", text="👁️ Editör Önizlemesi")
         if hata or not sayfalar:
             messagebox.showwarning(UYGULAMA_ADI, "Önizleme çizilemedi.\n\n" + (hata or ""))
             return
-        if sys.platform == "darwin":                        # Önizleme'de tek pencerede, sayfa sayfa
+        if sys.platform == "darwin":
             subprocess.run(["open"] + sayfalar)
         else:
             dosya_ac(sayfalar[0])
@@ -706,37 +1814,71 @@ class Uygulama(TEMEL_PENCERE):
     # --------------------------------------------------------------- hakkında
     def hakkinda_ac(self):
         p = tk.Toplevel(self)
-        p.title("Hakkında")
+        p.title(f"Hakkında — {UYGULAMA_ADI}")
         p.transient(self)
         p.resizable(False, False)
-        c = ttk.Frame(p, padding=20)
-        c.pack(fill="both", expand=True)
-        ttk.Label(c, text=UYGULAMA_ADI, font=("Helvetica", 16, "bold")).pack()
-        ttk.Label(c, text=f"Sürüm {SURUM}", foreground=self.renk["soluk"]).pack(pady=(2, 10))
-        ttk.Label(c, justify="center", wraplength=380, text=(
-            "Word (.docx) belgesini; tabloları, görselleri, listeleri, üstbilgi ve altbilgisiyle "
-            "UYAP Doküman Editörü'nün UDF biçimine, UDF belgesini de aynı şekilde Word'e çevirir. "
-            ".doc, .rtf, .odt ve Pages belgeleri bilgisayardaki Word ya da Pages ile açılarak çevrilir. "
-            "Her çıktı üretildikten sonra kaynağıyla karşılaştırılarak doğrulanır.\n\n"
-            "Belgeler bilgisayarınızdan çıkmaz; "
-            "program kendiliğinden internete bağlanmaz.")).pack()
-        ttk.Separator(c).pack(fill="x", pady=12)
-        ttk.Label(c, text=YAZAR, font=("Helvetica", 12, "bold")).pack()
-        ttk.Label(c, text=YAZAR_EK, foreground=self.renk["soluk"]).pack()
-        ttk.Label(c, text=LISANS, foreground=self.renk["soluk"]).pack(pady=(8, 0))
-        ttk.Label(c, foreground=self.renk["soluk"], font=("Helvetica", 10), justify="center", text=(
-            "Editör önizlemesi: " + ("kullanılabilir (UYAP Doküman Editörü bulundu)" if self.editor_var
-                                     else "kapalı (UYAP Doküman Editörü bulunamadı)")
-            + "\nBu program UYAP veya Adalet Bakanlığı ile bağlantılı değildir.")).pack(pady=(8, 0))
+        p.bind("<Escape>", lambda e: p.destroy())
+        p.configure(bg=self.renk["bg_pencere"])
+        pencerelere_koyu_baslik_uygula(p, self.tema_koyu)
+
+        c = tk.Frame(p, bg=self.renk["bg_kart"], highlightthickness=1,
+                     highlightbackground=self.renk["cizgi"], padx=24, pady=20)
+        c.pack(fill="both", expand=True, padx=16, pady=16)
+
+        # Logo mark
+        logo = tk.Canvas(c, width=50, height=50, bg=self.renk["bg_kart"], highlightthickness=0)
+        logo.pack(pady=(0, 6))
+        if hasattr(self, "_logo_img") and self._logo_img:
+            logo.create_image(25, 25, image=self._logo_img)
+        else:
+            logo.create_oval(3, 3, 47, 47, fill=self.renk["birincil"], outline="")
+            logo.create_text(25, 25, text="UDF", fill="#ffffff", font=(self.font_aile, 12, "bold"))
+
+        tk.Label(c, text=UYGULAMA_ADI, font=(self.font_aile, 16, "bold"),
+                 bg=self.renk["bg_kart"], fg=self.renk["yazi"]).pack()
+        tk.Label(c, text=f"Sürüm {SURUM}", font=(self.font_aile, 10, "bold"),
+                 bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"], padx=8, pady=2).pack(pady=(4, 12))
+
+        tk.Label(c, justify="center", wraplength=420, font=(self.font_aile, 10),
+                 bg=self.renk["bg_kart"], fg=self.renk["yazi_ikincil"], text=(
+            "Word (.docx) belgelerini; tabloları, görselleri, listeleri, üstbilgi ve "
+            "altbilgisiyle UYAP Doküman Editörü'nün UDF biçimine, UDF belgelerini de "
+            "aynı sadakatle Word'e çevirir. Markdown (.md), .doc, .rtf, .odt ve Pages "
+            "biçimleri de desteklenir.\n\n"
+            "🔒 Belgeler bilgisayarınızdan asla çıkmaz; tüm işlemler yerel olarak yapılır. "
+            "Program kendiliğinden internete bağlanmaz.")).pack()
+
+        tk.Frame(c, height=1, bg=self.renk["cizgi"]).pack(fill="x", pady=14)
+
+        tk.Label(c, text=YAZAR, font=(self.font_aile, 11, "bold"),
+                 bg=self.renk["bg_kart"], fg=self.renk["yazi"]).pack()
+        tk.Label(c, text=YAZAR_EK, font=(self.font_aile, 10),
+                 bg=self.renk["bg_kart"], fg=self.renk["soluk"]).pack(pady=(2, 0))
+        tk.Label(c, text=LISANS, font=(self.font_aile, 9),
+                 bg=self.renk["bg_kart"], fg=self.renk["soluk_acik"]).pack(pady=(6, 0))
+
+        editor_durum = ("✓ UYAP Doküman Editörü bulundu (Önizleme etkin)" if self.editor_var
+                        else "UYAP Doküman Editörü bulunamadı (Önizleme pasif)")
+        tk.Label(c, text=editor_durum, font=(self.font_aile, 9),
+                 bg=self.renk["bg_kart_alt"], fg=self.renk["soluk"], padx=8, pady=3).pack(pady=(10, 0))
+
+        tk.Label(c, text="Bu program UYAP veya Adalet Bakanlığı ile resmi bir bağlantıya sahip değildir.",
+                 font=(self.font_aile, 8), bg=self.renk["bg_kart"], fg=self.renk["soluk_acik"]).pack(pady=(4, 0))
+
         if DEPO:
-            yazi = ttk.Label(c, text="", foreground=self.renk["soluk"])
-            btn_indir = ttk.Button(c, text="İndirme sayfasını aç",
+            guncelleme_kutusu = tk.Frame(c, bg=self.renk["bg_kart"])
+            guncelleme_kutusu.pack(pady=(12, 0))
+            yazi = tk.Label(guncelleme_kutusu, text="", font=(self.font_aile, 9),
+                            bg=self.renk["bg_kart"], fg=self.renk["soluk"])
+            btn_indir = ttk.Button(guncelleme_kutusu, text="İndirme Sayfasını Aç", style="Secondary.TButton",
                                    command=lambda: webbrowser.open(SURUM_SAYFA))
-            dugme = ttk.Button(c, text="Güncellemeleri kontrol et")
+            dugme = ttk.Button(guncelleme_kutusu, text="🔄 Güncellemeleri Denetle", style="Secondary.TButton")
             dugme.configure(command=lambda: self.guncelleme_kontrol(p, dugme, yazi, btn_indir))
-            dugme.pack(pady=(12, 0))
-            yazi.pack(pady=(6, 0))
-        ttk.Button(c, text="Kapat", command=p.destroy).pack(pady=(14, 0))
+            dugme.pack()
+            yazi.pack(pady=(4, 0))
+
+        ttk.Button(c, text="Kapat", style="Secondary.TButton", command=p.destroy).pack(pady=(14, 0))
+        pencereyi_ortala(p, self)
 
     def guncelleme_kontrol(self, pencere, dugme, yazi, btn_indir):
         dugme.configure(state="disabled", text="Denetleniyor…")
@@ -744,14 +1886,16 @@ class Uygulama(TEMEL_PENCERE):
         def bitti(etiket, hata):
             if not pencere.winfo_exists():
                 return
-            dugme.configure(state="normal", text="Güncellemeleri kontrol et")
+            dugme.configure(state="normal", text="🔄 Güncellemeleri Denetle")
             if hata:
                 yazi.configure(text="Denetlenemedi (internet bağlantısı yok olabilir).")
+                btn_indir.pack_forget()
             elif surum_sayilari(etiket) > surum_sayilari(SURUM):
                 yazi.configure(text=f"Yeni sürüm var: {etiket}")
                 btn_indir.pack(pady=(6, 0))
             else:
                 yazi.configure(text="En güncel sürümü kullanıyorsunuz.")
+                btn_indir.pack_forget()
 
         def is_parcacigi():
             try:
